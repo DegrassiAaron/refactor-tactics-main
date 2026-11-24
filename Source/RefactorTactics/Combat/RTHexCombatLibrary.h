@@ -79,9 +79,18 @@ struct FRTHexCombatUnit
 	 * `Direct`), altrimenti la RES di quell'elemento, cioe' la sua voce in `ElementResistance` o, se manca,
 	 * `ResistanceDefault` — la stessa regola di `ARTUnit::ResistanceAgainst`. E' l'unico punto in cui si sceglie fra DEF
 	 * e RES: `MitigatedHitPower` la chiama, e il colpo ne registra l'esito in `FRTHexAttackHit::DefenseApplied`.
+	 *
+	 * Un colpo PERFORANTE ([D-634] (47), #4189, `bPiercing`) non legge nessuna delle due: la difesa e' `0`. La scelta sta qui
+	 * e non in chi chiama, cosi' `MitigatedHitPower` e `DefenseApplied` non possono divergere, e ogni ricalcolo che parte da
+	 * `DefenseApplied` (`Exposed`, marchio, +80 contro `Wet`) eredita lo zero senza un ramo suo. ⚠️ `bPiercing` ha un default
+	 * a `false` per i chiamanti che non hanno un colpo in mano (i test della RES): chi ha un intento lo passa sempre.
 	 */
-	int32 DefenseAgainst(const FName& ElementId) const
+	int32 DefenseAgainst(const FName& ElementId, bool bPiercing = false) const
 	{
+		if (bPiercing)
+		{
+			return 0;
+		}
 		if (ElementId.IsNone())
 		{
 			return Defense;
@@ -279,6 +288,19 @@ struct FRTHexAttackIntent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
 	FName ElementId;
 
+	/**
+	 * Il colpo e' PERFORANTE ([D-634] (47), #4189): difesa 0 e nessuna copertura bassa da sottrarre; Guard e scudo restano.
+	 * Si COPIA da `FRTActionDef::bPiercing`, accanto a `ElementId` e per la stessa ragione: la sede della decisione e' il
+	 * catalogo, qui c'e' il parametro dell'intento. `CollectHexAttacks` e `RedirectHitTo` lo leggono dall'intento, e il colpo
+	 * che ne esce porta `DefenseApplied` 0 e `CoverReduction` 0 — non ha un campo suo, perche' nessun consumatore del colpo
+	 * deve sapere PERCHE' la difesa e' zero.
+	 *
+	 * ⚠️ **Nasce `false`**: un intento costruito senza dichiararlo — un test, un percorso che non legge il `Def` — resta un
+	 * colpo che la difesa e la copertura riducono, cioe' il comportamento di prima del campo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bPiercing = false;
+
 	FRTHexAttackIntent() = default;
 };
 
@@ -375,8 +397,11 @@ struct FRTHexAttackHit
 
 	/**
 	 * La difesa del bersaglio letta per questo colpo ([D-589]): la DEF per un colpo senza elemento, la RES dell'elemento
-	 * per uno elementale ([D-634] (4), #4189), cioe' `FRTHexCombatUnit::DefenseAgainst(ElementId)`. `ApplyExposedToFirstHit`
+	 * per uno elementale ([D-634] (4), #4189), cioe' `FRTHexCombatUnit::DefenseAgainst(ElementId, bPiercing)`. `ApplyExposedToFirstHit`
 	 * ricalcola il colpo da qui, e `ToAttacks` la scrive come operando della voce `Defense`.
+	 *
+	 * Per un colpo PERFORANTE ([D-634] (47)) e' `0`, e con `CoverReduction` `0` e' cio' che tiene coerente ogni ricalcolo: il
+	 * colpo non porta un flag, porta una difesa e una copertura che sono gia' zero (`FRTHexAttackIntent::bPiercing`).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 DefenseApplied = 0;
@@ -948,8 +973,9 @@ public:
 	 * spalle» e' «fuori dall'arco frontale del bersaglio» dall'origine di `ImpactOriginOf`.
 	 *
 	 * La difesa e' la DEF per un colpo senza elemento e la RES dell'elemento per uno elementale ([D-634] (4), #4189): la
-	 * stessa formula, con un solo arrotondamento ([D-595] (1)), cambia solo la statistica. Il chiamante registra la
-	 * stessa scelta in `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
+	 * stessa formula, con un solo arrotondamento ([D-595] (1)), cambia solo la statistica. Per un colpo PERFORANTE e'
+	 * `0` ([D-634] (47)): le spalle e il Base restano, la difesa no. Il chiamante registra la stessa scelta in
+	 * `FRTHexAttackHit::DefenseApplied`, da cui `ApplyExposedToFirstHit` ricalcola.
 	 *
 	 * `Mod` e' `100` QUI, per costruzione: l'unico moltiplicatore di oggi, `Exposed` 120 ([D-595] (2); CP 53.3b), vale
 	 * sul PRIMO colpo che fa danno, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto» di
@@ -960,10 +986,11 @@ public:
 	 * tenuto il corpus golden byte-identico in CP 53.2c.
 	 *
 	 * @param ElementId            l'elemento del colpo (`FRTHexAttackIntent::ElementId`); `NAME_None` = `Direct`, la DEF.
+	 * @param bPiercing            il colpo e' perforante (`FRTHexAttackIntent::bPiercing`): difesa 0, qualunque sia l'elemento.
 	 * @param OutRearBonusApplied  il bonus che e' entrato nella Base (0 se frontale o senza bonus), per il breakdown.
 	 */
 	static int32 MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
-		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId,
+		ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId, bool bPiercing,
 		int32& OutRearBonusApplied);
 
 	/**

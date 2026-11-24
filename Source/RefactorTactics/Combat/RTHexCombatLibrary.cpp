@@ -319,7 +319,7 @@ FRTCellId URTHexCombatLibrary::ImpactOriginOf(ERTAbilityShape Shape, const FRTCe
 }
 
 int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, const FRTHexCombatUnit& Target,
-	ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId,
+	ERTAbilityShape Shape, const FRTCellId& AimCell, int32 BasePower, const FName& ElementId, bool bPiercing,
 	int32& OutRearBonusApplied)
 {
 	// «Alle spalle» = fuori dall'arco frontale del BERSAGLIO, giudicato dall'origine d'impatto ([D-587] (1), D-126):
@@ -337,10 +337,11 @@ int32 URTHexCombatLibrary::MitigatedHitPower(const FRTHexCombatUnit& Attacker, c
 	}
 	const bool bRear = !IsInFrontalArc(Target.Cell, Target.Facing, ImpactOriginOf(Shape, Attacker.Cell, AimCell));
 	OutRearBonusApplied = bRear ? FMath::Max(0, Attacker.RearBonus) : 0;
-	// [D-634] (4), #4189: la DEF per il colpo senza elemento, la RES dell'elemento per quello elementale. La formula e'
-	// la stessa; la scelta e' una sola, in `DefenseAgainst`, e il chiamante registra la stessa in `DefenseApplied`.
+	// [D-634] (4), #4189: la DEF per il colpo senza elemento, la RES dell'elemento per quello elementale, e `0` per un colpo
+	// perforante ([D-634] (47)): le spalle e il Base restano, la difesa no. La formula e' la stessa; la scelta e' una sola, in
+	// `DefenseAgainst`, e il chiamante registra la stessa in `DefenseApplied`.
 	return URTCombatLibrary::MitigateDirectDamage(BasePower, OutRearBonusApplied, /*ModPercent*/ 100,
-		FMath::Max(0, Target.DefenseAgainst(ElementId)));
+		FMath::Max(0, Target.DefenseAgainst(ElementId, bPiercing)));
 }
 
 FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTHexAttackHit& Hit,
@@ -362,13 +363,18 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	const FRTHexAttackIntent& Intent = Intents[Hit.IntentIndex];
 	const FRTHexCombatUnit& Attacker = Units[Hit.AttackerId];
 	const FRTHexCombatUnit& NewTarget = Units[NewTargetId];
-	const int32 Reduction = EffectiveCoverReduction(Map, Attacker, NewTarget, Intent.Shape);
+	// Un colpo perforante non sottrae la copertura bassa ([D-634] (47), #4189): e' una proprieta' dell'AZIONE, dell'intento, e
+	// resta tale per chi lo incassa al posto del bersaglio. `Reduction` e `Nominal` (piu' sotto) sono `0`: nessuna copertura
+	// scavalcata dalla direzione. `Out.CoverReduction` e' quello del bersaglio originale, come per ogni colpo redirezionato
+	// (#4037, qui sotto), e per un perforante vale `0` perche' il colpo e' nato a `0`.
+	const int32 Reduction = Intent.bPiercing ? 0 : EffectiveCoverReduction(Map, Attacker, NewTarget, Intent.Shape);
 
 	// [D-589] (CP 53.2c): anche DEF e spalle sono TARGET-DEPENDENT, per la stessa ragione della copertura qui
 	// sopra — la DEF e' dell'intercettore, e l'arco frontale da cui le spalle si giudicano e' il suo. Si
 	// ricalcola dalla potenza dell'INTENTO, come il resto della funzione. Per un colpo elementale la difesa e' la RES
 	// dell'intercettore per l'elemento del COLPO (`Out.ElementId`, copiato da `Hit`; #4189): l'elemento e' dell'azione
-	// e resta, la statistica che lo mitiga cambia con chi lo incassa.
+	// e resta, la statistica che lo mitiga cambia con chi lo incassa. Per un perforante la difesa e' `0` qualunque sia
+	// l'intercettore (`Intent.bPiercing`, [D-634] (47)).
 	//
 	// ⚠️ **`CoverReduction` resta DELIBERATAMENTE quello del bersaglio originale**, ed e' un difetto latente
 	// che questo passo nomina e NON corregge. Il campo e' stantio dal giorno in cui e' nato (`#1951`): la
@@ -380,16 +386,17 @@ FRTHexAttackHit URTHexCombatLibrary::RedirectHitTo(int32 NewTargetId, const FRTH
 	// dichiarata nella sua PR: vedi il FOLLOW-UP nella PR di CP 53.2c su #4013.
 	int32 RearApplied = 0;
 	const int32 Mitigated = MitigatedHitPower(Attacker, NewTarget, Intent.Shape, Intent.TargetCell, Intent.Power,
-		Out.ElementId, RearApplied);
+		Out.ElementId, Intent.bPiercing, RearApplied);
 	Out.Power = FMath::Max(0, Mitigated - Reduction);
 	Out.NominalPower = Intent.Power;
 	Out.MitigatedPower = Mitigated;
 	Out.RearBonusApplied = RearApplied;
-	Out.DefenseApplied = NewTarget.DefenseAgainst(Out.ElementId);
+	Out.DefenseApplied = NewTarget.DefenseAgainst(Out.ElementId, Intent.bPiercing);
 	// La redirezione cambia il BERSAGLIO, quindi cambia anche la geometria della copertura: ricalcolare il
 	// danno e lasciare la vecchia attribuzione direzionale darebbe una traccia che parla della vittima
-	// precedente.
-	const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, NewTarget.Cell, Intent.Shape);
+	// precedente. Per un perforante non c'e' copertura da scavalcare: `Nominal` e `Reduction` sono `0`.
+	const int32 Nominal = Intent.bPiercing ? 0
+		: HexCoverDamageReduction(Map, Attacker.Cell, NewTarget.Cell, Intent.Shape);
 	Out.CoverBypassedByFacing = FMath::Max(0, Nominal - Reduction);
 	return Out;
 }
@@ -841,29 +848,37 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				// La copertura si applica QUI, sul singolo colpo: dipende da dove sta CHI lo subisce, non
 				// dall'intento — due bersagli della stessa azione possono essere riparati in modo diverso.
 				// Il danno si ferma a 0: il colpo resta avvenuto (trigger e marchi contano lo stesso).
-				const int32 Reduction = EffectiveCoverReduction(Map, Attacker, Other, Intent.Shape);
+				//
+				// Un colpo PERFORANTE non sottrae la copertura bassa ([D-634] (47), #4189): `Reduction` e `Nominal` sono `0`, e
+				// il colpo nasce con `CoverReduction` 0 e `DefenseApplied` 0 (qui sotto). E' li' che ogni ricalcolo successivo
+				// — `Exposed`, il marchio, il +80 contro `Wet` — li trova, e non ha bisogno di un ramo suo. La copertura ALTA non
+				// c'entra: ferma la linea di tiro piu' in alto, e un colpo che non ci arriva non e' un colpo.
+				const int32 Reduction = Intent.bPiercing
+					? 0 : EffectiveCoverReduction(Map, Attacker, Other, Intent.Shape);
 
 				// Quanto la DIREZIONE ha annullato: la differenza fra la copertura che il bordo offre e quella
 				// che vale davvero da questa provenienza. Si calcola qui e non altrove perche' qui ci sono
 				// entrambe le figure — chi spara e chi subisce — e `EffectiveCoverReduction` non puo' dirlo da
 				// sola: restituisce `0` sia quando la copertura non c'e' sia quando la direzione l'ha tolta.
-				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
+				const int32 Nominal = Intent.bPiercing
+					? 0 : HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
 
 				// [D-589] (E53 CP 53.2c): spalle e DEF PRIMA della copertura, che resta piatta e si sottrae dopo. Con
 				// DEF e bonus a zero `Mitigated == Intent.Power` (`Combat.ZeroDefenseAndRearLeaveHitsUntouched`); dal
 				// CP 53.3c il catalogo porta i valori di D-595 (3) e D-599, e i golden li incorporano
 				// (`Simulation.GoldenCorpusMatches`, rigenerati e dichiarati nella PR di quel passo). Dal #4189 la difesa e'
-				// quella dell'elemento dell'intento ([D-634] (4)): la DEF senza elemento, la RES dell'elemento altrimenti.
+				// quella dell'elemento dell'intento ([D-634] (4)): la DEF senza elemento, la RES dell'elemento altrimenti, e `0`
+				// per un perforante ([D-634] (47)).
 				int32 RearApplied = 0;
 				const int32 Mitigated = MitigatedHitPower(Attacker, Other, Intent.Shape, AimCell, Intent.Power,
-					Intent.ElementId, RearApplied);
+					Intent.ElementId, Intent.bPiercing, RearApplied);
 				FRTHexAttackHit Hit(Intent.AttackerId, u,
 					FMath::Max(0, Mitigated - Reduction), IntentIdx,
 					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction),
 					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction);
 				Hit.MitigatedPower = Mitigated;
 				Hit.RearBonusApplied = RearApplied;
-				Hit.DefenseApplied = Other.DefenseAgainst(Intent.ElementId);
+				Hit.DefenseApplied = Other.DefenseAgainst(Intent.ElementId, Intent.bPiercing);
 				Hit.ElementId = Intent.ElementId; // #4189: l'elemento e' dell'azione, ogni colpo dell'intento lo porta
 				Plan.Hits.Add(MoveTemp(Hit));
 			}

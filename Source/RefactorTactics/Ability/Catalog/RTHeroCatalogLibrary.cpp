@@ -1224,6 +1224,9 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCatalog(const FName& Her
 	// `Direct`. Oggi nessun core ne dichiara uno, quindi per tutte copiarlo e' un'identita'; un kit che vuole un altro
 	// elemento lo scrive dopo la derivazione, come `MistVeil` fa con la linea di tiro.
 	Action->Def.ElementId = Core.ElementId;
+	// ➕ **E il perforante** (#4189, [D-634] (47)), per la stessa ragione dell'elemento: una riga core perforante darebbe
+	// senza questa riga un'azione d'eroe che paga DEF e copertura. Oggi nessun core lo dichiara, quindi copiarlo e' un'identita'.
+	Action->Def.bPiercing = Core.bPiercing;
 	return Action;
 }
 

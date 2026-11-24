@@ -230,7 +230,7 @@ public:
 	 *
 	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti**, e dei campi di comportamento solo
 	 * quelli che una riga ciascuno copia dopo la costruzione: `bSelfTarget` (con lo specchio, #2283),
-	 * `LineOfSightPolicy` (#2890), `MinRangeCells` (#3093) ed `ElementId` (#4189). Restano fuori lo `Slot` e gli
+	 * `LineOfSightPolicy` (#2890), `MinRangeCells` (#3093), `ElementId` e `bPiercing` (#4189). Restano fuori lo `Slot` e gli
 	 * altri: `MovementStyle`, `StructureOp`, `PropagationLimit`, `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`,
 	 * `InterruptPolicy`, `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e'
 	 * lungo apposta: un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea

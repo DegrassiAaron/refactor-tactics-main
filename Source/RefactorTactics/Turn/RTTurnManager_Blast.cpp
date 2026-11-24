@@ -1682,6 +1682,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Quinta volta lo stesso rimedio (#4189, [D-634] (4)): l'elemento del colpo. Senza questa riga ogni intento
 		// nascerebbe `Direct`, e un'azione che il catalogo dichiara elementale arriverebbe al resolver senza elemento.
 		Intent.ElementId = Instance.Def.ElementId;
+		// Sesta volta (#4189, [D-634] (47)): il perforante. Senza questa riga ogni intento nascerebbe riducibile, e un'azione che il
+		// catalogo dichiara perforante pagherebbe la DEF e il muretto come ogni altra.
+		Intent.bPiercing = Instance.Def.bPiercing;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1785,6 +1788,8 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
 		// E l'elemento (#4189), per la stessa ragione: la carica ha il suo `Def`, e il colpo dell'impatto e' suo.
 		Intent.ElementId = Impact.Def.ElementId;
+		// E il perforante (#4189), per la stessa ragione: l'impatto di una carica perforante non paga DEF ne' copertura bassa.
+		Intent.bPiercing = Impact.Def.bPiercing;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);

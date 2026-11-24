@@ -927,5 +927,27 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ElementId;
 
+	/**
+	 * Il colpo dell'azione e' **perforante** ([D-634] (47), #4189): la mitigazione usa difesa 0 — ne' la DEF ne' la RES
+	 * dell'elemento — e la copertura bassa non si sottrae. La **Guard** e lo **scudo** restano: il perforante salta cio'
+	 * che il bersaglio ha come statistica e come riparo di cella, non cio' che ha fatto o speso per proteggersi. Il
+	 * bonus alle spalle, il marchio e il +80 contro `Wet` entrano nel Base come per ogni colpo; la copertura ALTA continua
+	 * a fermare la linea di tiro, perche' un colpo perforante non attraversa un muro.
+	 *
+	 * Viaggia sull'intento (`FRTHexAttackIntent::bPiercing`), copiato dove l'intento nasce: `CollectAttackIntents` e
+	 * l'impatto di una carica (`AppendChargeImpactIntents`). `CollectHexAttacks` e `RedirectHitTo` ne fanno un colpo con
+	 * `DefenseApplied` 0 e `CoverReduction` 0, e da li' ogni ricalcolo (`Exposed`, marchio, +80) resta coerente senza un
+	 * ramo suo.
+	 *
+	 * ⚠️ **Non e' il «perforante» di [D-386]**, il perforare i bersagli lungo una linea (`LineResolution`): qui si
+	 * attraversa una difesa, non una fila di unita'. ⚠️ **Nessuna riga di oggi lo dichiara**, quindi nessun numero di oggi
+	 * cambia; la prima sara' la Sticky Bomb, in una fetta successiva. Come `ElementId`, non entra in nessun hash e il
+	 * TurnLog non lo porta: lo si legge solo nell'assenza delle voci `Defense` e `Cover` del breakdown del colpo.
+	 * ⛔ Lo onorano i soli colpi che nascono da un intento del Blast: una riga di previsione, di Overwatch o di reazione
+	 * con questo flag lo ignorerebbe, e `ValidateActions` non lo rifiuta ancora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	bool bPiercing = false;
+
 	FRTActionDef() = default;
 };
