@@ -109,9 +109,12 @@ nel vertical slice).
 | `Hero.Gadget.ReactiveCapacitor` | Condensatore reattivo | reazione | scudo 150 e 100 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
-> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Gadget.LinearDischarge` è una
+> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+80` di `Hero.Gadget.LinearDischarge` è una
 > condizione **dell'abilità di Gadget** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
-> dall'eroe che ha applicato `Wet`. Muiren è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
+> dall'eroe che ha applicato `Wet`. Entra nel Base del colpo, **prima** della DEF
+> ([D-634](../decisions/RT_PDR_00_Decision_Log.md) (35), [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)):
+> contro DEF 45 la scarica da 240 su un bersaglio bagnato fa `floor(320 × 100/145)` = 220. ⏱️ *Fino al #4189 si sommava
+> al colpo già mitigato, 165 + 80 = 245; e fino alla passata ×10 questo paragrafo diceva `+8`.* Muiren è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
 > sorgente di `Wet` autorizzata dalle regole (l'equipaggiamento `Gadget.Sprinkler`, acqua bassa del terreno, una futura abilità)
 > abilita lo stesso payoff. Le etichette storiche **`Water-Electric Combo`** (Signature secondaria di Gadget) e
 > «combo elettrica» qui sopra nominano quell'**interazione sistemica**, non una coppia Gadget + Muiren: restano
@@ -271,6 +274,18 @@ Preparation spesa qui è quella che non arma `InterceptShot`.
 > del catalogo, non quella definitiva: la taratura resta di questo documento ([D-282](../decisions/RT_PDR_00_Decision_Log.md)).
 > La formula è `URTCombatLibrary::MitigateDirectDamage`; la tabella di controllo di CP 53.1 si misura sul catalogo
 > reale in `RefactorTactics.Heroes.ControlTableHoldsOnTheRealCatalog`.
+>
+> 🧮 **Dal #4189 ([D-634](../decisions/RT_PDR_00_Decision_Log.md)) la formula ha quattro regole in più**, nel codice
+> ([#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)):
+> - un'azione può dichiarare un elemento, e il suo colpo si riduce con la `RES` di quell'elemento invece che con la `DEF`,
+>   con la stessa forma `100/(100+RES)` ((4)); la colonna `RES` qui sopra è la resistenza di partenza per gli elementi,
+>   accanto alla resistenza per elemento ((6));
+> - lo scudo base ferma solo il danno `Direct`, non quello elementale ((5));
+> - il marchio (+60) e il +80 di `LinearDischarge` contro `Wet` entrano nel Base, **prima** della difesa ((35));
+> - un'azione perforante usa difesa 0 e non sottrae la copertura bassa; Guard e scudo restano ((47)).
+>
+> Nessuna azione del kit di oggi dichiara un elemento o è perforante, quindi dei quattro solo il punto dei due bonus
+> cambia un numero in partita.
 >
 > 🔢 **Copertura, Guard e Brace sono tarate con la DEF in mano** ([D-602](../decisions/RT_PDR_00_Decision_Log.md),
 > stesso passo): copertura bassa **60**, Guard **100**, Brace **60**. Con i valori della passata ×10 (100 · 150 · 100)

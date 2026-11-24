@@ -183,7 +183,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Muiren h
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Muiren.MatchesCatalog` |
-| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `90 − (16 + 32 − 5 di BaseShield) = 47`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` la scarica varrebbe 24 invece di 32, e lo scenario diventa rosso |
+| L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `900 − (191 + 330 − 50 di BaseShield) = 429`, dove i 330 valgono solo se il bersaglio è bagnato: la scarica arriva alle spalle, `floor((240 + 60 + 80) × 100/115)`, col +80 nel Base prima della DEF ([D-634](../../decisions/RT_PDR_00_Decision_Log.md) (35), [#4189](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4189)). Senza `Wet` la scarica varrebbe `floor(300 × 100/115)` = 260 invece di 330, e lo scenario diventa rosso |
 
 ## Abilità
 
