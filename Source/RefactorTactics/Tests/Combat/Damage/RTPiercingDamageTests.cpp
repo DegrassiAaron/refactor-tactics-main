@@ -31,9 +31,10 @@
  * `Mod` di `Exposed`, il marchio e il +80 restano» e' una lettura di [D-634] (47) («contro chiunque fa 420 meno l'eventuale
  * Guard»), che si legge anche come 420 piatto: qui «contro chiunque» vale «qualunque sia la difesa del bersaglio». Se
  * l'autore vuole il 420 piatto, i test che lo fissano sono `MarkAndExposedKeepDefenseAndCoverAtZero`,
- * `RecomputesKeepZeroOnTheHit` e il caso alle spalle di `CollectsDefenseAndCoverAtZero`; il punto del codice e' descritto in
- * `FRTActionDef::bPiercing`. Guard e scudo, invece, sono scritti nella decisione e non sono una lettura. Brace e Deflect
- * restano per costruzione (stanno dopo la mitigazione) e non hanno un controllo di turno qui.
+ * `RecomputesKeepZeroOnTheHit`, il caso alle spalle di `CollectsDefenseAndCoverAtZero` e quello di
+ * `RedirectedHitStaysPiercing` (420 + 30); il punto del codice e' descritto in `FRTActionDef::bPiercing`. Guard e scudo,
+ * invece, sono scritti nella decisione e non sono una lettura. Brace e Deflect restano per costruzione (stanno dopo la
+ * mitigazione) e non hanno un controllo di turno qui.
  *
  * Il banco e' quello del piano: un colpo da 420 contro Riktor (DEF 45, RES 35, Guard 100, scudo base 50 nel catalogo), in
  * copertura bassa frontale (60, [D-602]).
@@ -41,7 +42,7 @@
  *   - perforante       420;
  *   - perforante e Guard    420 - 100 = 320 (il flag non salta la Guard);
  *   - perforante e scudo base    420 - 50 = 370: senza elemento e' un colpo `Direct`, e lo scudo base ferma il `Direct`
- *     ([D-634] (5)). Un perforante ELEMENTALE (la Sticky Bomb, in una fetta successiva) segue la regola dello scudo, non
+ *     ([D-634] (5)). Un perforante ELEMENTALE segue la regola dello scudo del Task 4 (lo scudo base non lo ferma), non
  *     questa: non e' provato qui (Ruling 1 del #4189).
  *
  * ⚠️ **Perche' le ultime due colonne passano da un turno vero**: la Guard e lo scudo non stanno nel piano della raccolta ma nei
@@ -534,7 +535,8 @@ bool FRTDamagePiercingCollectsDefenseAndCoverAtZeroTest::RunTest(const FString&)
  * intercettore (DEF 45, copertura bassa sul lato da cui arriva il colpo):
  *   - frontale: 420 (senza il flag floor(420 x 100/145) - 60 = 229, `DefenseApplied` 45);
  *   - alle spalle, con il bonus alle spalle di 30: 450 e `CoverBypassedByFacing` 0 (senza il flag floor(450 x 100/145) = 310 e
- *     60 di copertura scavalcata dalla direzione).
+ *     60 di copertura scavalcata dalla direzione). Il 450 e' il Ruling 6 del #4189 (lettura del controller, da confermare
+ *     dall'autore, ribaltabile): con il 420 piatto di D-634 (47) questo caso si inverte, 420 e non 450.
  *
  * ⚠️ `CoverReduction` del colpo redirezionato NON si asserisce: resta quello del bersaglio originale, difetto latente e
  * dichiarato (#4037, `RedirectHitTo`), che questo cambio non tocca. Il perforante lo eredita a zero perche' nasce a zero.
@@ -594,7 +596,8 @@ bool FRTDamagePiercingRedirectedHitStaysPiercingTest::RunTest(const FString&)
 		{
 			TestEqual(TEXT("perforante redirezionato, frontale: 420"), RedirFrontale.Power, PcPower);
 			TestEqual(TEXT("perforante redirezionato, frontale: DefenseApplied 0"), RedirFrontale.DefenseApplied, 0);
-			TestEqual(TEXT("perforante redirezionato, alle spalle: 420 + 30"), RedirSpalle.Power, PcPower + PcRearBonus);
+			TestEqual(TEXT("perforante redirezionato, alle spalle: 420 + 30 (Ruling 6 del #4189: lettura del controller, ribaltabile)"),
+				RedirSpalle.Power, PcPower + PcRearBonus);
 			TestEqual(TEXT("perforante redirezionato, alle spalle: DefenseApplied 0"), RedirSpalle.DefenseApplied, 0);
 			TestEqual(TEXT("perforante redirezionato, alle spalle: nessuna copertura scavalcata"),
 				RedirSpalle.CoverBypassedByFacing, 0);

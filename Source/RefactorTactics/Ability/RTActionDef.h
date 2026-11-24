@@ -940,11 +940,13 @@ struct FRTActionDef
 	 * «contro chiunque fa 420 meno l'eventuale Guard», che si legge anche come 420 piatto. Qui «contro chiunque» e' letto
 	 * come «qualunque sia la difesa del bersaglio»: restano nel Base e nel `Mod` il **bonus alle spalle**, il **`Mod` di
 	 * `Exposed`** (x1,2), il **marchio** (+60) e il **+80 contro `Wet`**, come per ogni colpo; un perforante da 420 alle
-	 * spalle con bonus 30 fa 450, e 504 se il bersaglio e' `Exposed`. Se la lettura voluta e' quella piatta, il punto da
-	 * rovesciare e' `URTHexCombatLibrary::MitigatedHitPower` (bonus alle spalle a 0 se `bPiercing`), con il caso alle spalle
-	 * di `Damage.Piercing.CollectsDefenseAndCoverAtZero` da invertire; per `Exposed`, marchio e +80 sono i passi di
-	 * `ResolveCombatPasses` che li applicano (`ApplyExposedToFirstHit`, `AddBonusToHitBase`) a dover saltare il colpo, con
-	 * `MarkAndExposedKeepDefenseAndCoverAtZero` e `RecomputesKeepZeroOnTheHit` da riscrivere.
+	 * spalle con bonus 30 fa 450, e 540 se il bersaglio e' `Exposed` ((420 + 30) x 120/100: il bonus resta nel Base e il `Mod`
+	 * lo moltiplica). Se la lettura voluta e' quella piatta, il punto da rovesciare e'
+	 * `URTHexCombatLibrary::MitigatedHitPower` (bonus alle spalle a 0 se `bPiercing`), e i casi da invertire sono quello alle spalle
+	 * di `Damage.Piercing.CollectsDefenseAndCoverAtZero` e quello di `Damage.Piercing.RedirectedHitStaysPiercing`; per
+	 * `Exposed`, marchio e +80 sono i passi di `ResolveCombatPasses` che li applicano (`ApplyExposedToFirstHit`,
+	 * `AddBonusToHitBase`) a dover saltare il colpo, con `MarkAndExposedKeepDefenseAndCoverAtZero` e
+	 * `RecomputesKeepZeroOnTheHit` da riscrivere.
 	 *
 	 * Viaggia sull'intento (`FRTHexAttackIntent::bPiercing`), copiato dove l'intento nasce: `CollectAttackIntents` e
 	 * l'impatto di una carica (`AppendChargeImpactIntents`). `CollectHexAttacks` e `RedirectHitTo` ne fanno un colpo con
