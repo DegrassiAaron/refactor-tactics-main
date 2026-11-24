@@ -117,15 +117,17 @@ bool FRTGadgetWetBonusTest::RunTest(const FString&)
 	TestEqual(TEXT("bersaglio Wet: 240 + 80 = 320"), AgainstWet, 320);
 	TestEqual(TEXT("il bonus e' esattamente 80"), URTCombatLibrary::GadgetWetDischargeBonus, 80);
 
-	// Il bonus si somma a un altro bonus di cella (es. altura), non lo sostituisce: e' un caso normale di
-	// `EffectiveAttackPower`, non uno speciale per Wet.
+	// Il bonus si somma a un altro bonus di cella (es. altura), non lo sostituisce: il bonus di cella entra nel
+	// potere dell'intento (`EffectiveAttackPower`), il +80 si aggiunge a quel Base sul piano, e il Base che la
+	// difesa riduce e' la somma dei due. La riga pinna quella somma; il punto in cui il +80 entra lo pinnano i
+	// `Damage.BaseBonus.*`.
 	TestEqual(TEXT("Wet + altura: si sommano"),
 		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::GadgetWetDischargeBonus + 30), 350);
 
-	// Limite dichiarato: qui si verifica la FORMULA, non il resolver. Nessuna unita' legge ancora
-	// `Status.Wet` durante il Blast (`CollectHexAttacks` non conosce lo stato del bersaglio) — il bonus
-	// diventa osservabile in partita quando CP 6.6 collega Gadget al turno E quando Phase (CP 6.3) applica
-	// `Status.Wet` per davvero.
+	// Qui si verifica il NUMERO, non il resolver. Il bonus in partita, con lo stato letto nel Blast (anche quando
+	// il bagnato nasce nello stesso Blast, #242), lo misurano `Status.Wet.AmplifiesGadgetDischarge` e
+	// `Damage.BaseBonus.WetEntersTheBaseInATurn`. ⏱️ *Questa riga diceva che nessuna unita' leggeva ancora
+	// `Status.Wet` durante il Blast: era vero prima del CP 6.6 e di #242.*
 	return true;
 }
 

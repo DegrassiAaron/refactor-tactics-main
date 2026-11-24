@@ -1017,6 +1017,10 @@ public:
 	 *
 	 * Chi prende il bonus lo decide il chiamante (`RTTurnManager.cpp`, `MarkSpentOn` e il pass della LinearDischarge):
 	 * questa funzione ne decide solo il PUNTO nella formula.
+	 *
+	 * @param Bonus  un bonus, quindi `>= 0` per contratto: i due chiamanti passano costanti positive. Un valore negativo
+	 *               non rompe niente — la formula tratta una Base sotto 0 come 0 e `Power` resta `>= 0` — ma non e' un
+	 *               uso previsto: una riduzione piatta sta dopo la difesa (copertura, Guard, Brace), non nel Base.
 	 */
 	static void AddBonusToHitBase(FRTHexAttackHit& Hit, int32 Bonus);
 

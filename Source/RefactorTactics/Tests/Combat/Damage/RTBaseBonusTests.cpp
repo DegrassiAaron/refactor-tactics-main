@@ -16,6 +16,7 @@
 #include "Misc/ScopeExit.h"
 #include "Tests/Shared/RTWorldFixtures.h"
 #include "Turn/Format/RTMatchSetupLibrary.h"
+#include "Turn/Log/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -83,6 +84,51 @@ namespace
 		I.Power = Power;
 		I.bCountsAsAttack = true;
 		return I;
+	}
+
+	/** Un'azione del catalogo core montata sull'unita', con il `Power` legacy azzerato: il danno lo dicono gli effetti. */
+	int32 BbMountCoreAction(ARTUnit* Unit, const TCHAR* ActionId, int32 RangeCells)
+	{
+		if (!Unit) { return INDEX_NONE; }
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		Action->Def.RangeCells = RangeCells;
+		Action->RangeCells = RangeCells;
+		Action->Shape = ERTAbilityShape::Single;
+		Action->Power = 0; // il default legacy (30) farebbe di una spinta un colpo che fa danno
+		return Unit->Abilities.Add(Action);
+	}
+
+	/** Le voci `Combat` del turno prodotte da `ActionId`, e la somma del loro `Amount`. */
+	int32 BbCombatEntries(const ARTTurnManager* TM, const FName& ActionId, int32& OutAmount)
+	{
+		int32 N = 0;
+		OutAmount = 0;
+		if (!TM) { return N; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Combat && E.ActionId == ActionId)
+			{
+				++N;
+				OutAmount += E.Amount;
+			}
+		}
+		return N;
+	}
+
+	int32 BbStatusEntries(const ARTTurnManager* TM, const FGameplayTag& Tag, ERTStatusOutcome Outcome)
+	{
+		int32 N = 0;
+		if (!TM) { return N; }
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Status && E.ActionId == Tag.GetTagName()
+				&& E.Outcome == static_cast<uint8>(Outcome))
+			{
+				++N;
+			}
+		}
+		return N;
 	}
 
 	FRTHexAttackHit* BbHitFrom(FRTHexBlastPlan& Plan, int32 AttackerId)
@@ -243,6 +289,93 @@ bool FRTDamageBaseBonusMarkWetAndExposedOnOneHitTest::RunTest(const FString&)
 	TestEqual(TEXT("e' la formula con i due bonus nel Base"), Tutti, URTCombatLibrary::MitigateDirectDamage(
 		BbDischargePower + URTCombatLibrary::MarkedFirstHitBonus + URTCombatLibrary::GadgetWetDischargeBonus, 0,
 		URTCombatLibrary::ExposedModPercent, BbTargetDefense));
+	return true;
+}
+
+/**
+ * La guardia del marchio che il Ruling 4 del #4189 conserva: il marchio va al primo colpo alleato che FA danno, giudicato
+ * PRIMA del bonus (`Hit.Power <= 0` in `RTTurnManager.cpp`, `MarkSpentOn`). Riktor (DEF 45, scudo a zero) e' marchiato
+ * dalla squadra 0 prima del Blast; Ivrin lo spinge (`Action.Push`, priorita' 40, nessun danno: un colpo con `Power` 0) e
+ * poi Gadget lo scarica (LinearDischarge, 55). Nell'ordine canonico la spinta viene prima.
+ *
+ * Con la guardia il +60 va alla scarica: floor(300 x 100/145) = 206, la spinta resta a 0. Senza, il ricalcolo nel Base
+ * darebbe alla spinta floor(60 x 100/145) = 41 e la scarica resterebbe a 165 — una spinta che fa danno.
+ *
+ * ⚠️ **Gli HP persi NON distinguono i due casi, e per questo si leggono le voci per colpo.** 41 + 165 = 206 =
+ * floor(300 x 100/145): con DEF 45 la somma dei due floor coincide con il floor della somma. Il test legge l'`Amount` delle
+ * voci `Combat` del TurnLog, una per colpo, con l'`ActionId` che le distingue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageBaseBonusMarkSkipsAZeroPowerHitTest,
+	"RefactorTactics.Damage.BaseBonus.MarkSkipsAZeroPowerHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageBaseBonusMarkSkipsAZeroPowerHitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (MapActor) { MapActor->MapAsset = MakeBbMap(6); }
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTUnit* Gadget = BbSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-1, 0, 0));
+	ARTUnit* Ivrin = BbSpawnUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, -1, 0));  // adiacente
+	ARTUnit* Riktor = BbSpawnUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
+	if (!TestNotNull(TEXT("mappa"), MapActor) || !TestNotNull(TEXT("turn manager"), TM)
+		|| !TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Ivrin"), Ivrin) || !TestNotNull(TEXT("Riktor"), Riktor)
+		|| !TestNotNull(TEXT("la LinearDischarge di Gadget"), Gadget->GetAbility(1)))
+	{
+		return false;
+	}
+
+	const int32 PushIdx = BbMountCoreAction(Ivrin, TEXT("Action.Push"), /*Range*/ 1);
+	const FRTActionDef& PushDef = Ivrin->Abilities[PushIdx]->Def;
+	const FRTActionDef& DischargeDef = Gadget->GetAbility(1)->Def;
+	if (!TestEqual(TEXT("premessa: la spinta del catalogo"), PushDef.ActionId, FName(TEXT("Action.Push")))
+		|| !TestEqual(TEXT("premessa: la spinta non dichiara danno"), URTCatalogLibrary::FirstDamage(PushDef), 0)
+		|| !TestTrue(TEXT("premessa: la spinta viene prima della scarica nell'ordine canonico"),
+			PushDef.Priority < DischargeDef.Priority)
+		|| !TestEqual(TEXT("premessa: la scarica vale 240"), URTCatalogLibrary::FirstDamage(DischargeDef), BbDischargePower)
+		|| !TestEqual(TEXT("premessa: Riktor ha DEF 45"), Riktor->Defense, BbTargetDefense))
+	{
+		return false;
+	}
+
+	Riktor->Facing = ERTHexDirection::W; // guarda Gadget: la scarica e' frontale
+	Riktor->ClearPlannedMainAction();
+	Riktor->Shield = 0;
+	Riktor->ApplyMarkedBy(Gadget->TeamId, /*Turni*/ 2); // marchio della squadra 0, gia' in essere quando il Blast comincia
+	const int32 StartHealth = Riktor->Health;
+
+	Ivrin->SetPlannedMainAction(PushIdx);
+	Ivrin->DeclareAttackOnUnit(Riktor);
+	Gadget->Facing = ERTHexDirection::E;
+	Gadget->SetPlannedMainAction(1);
+	Gadget->DeclareAttackOnUnit(Riktor);
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+	if (!TestFalse(TEXT("premessa: il turno si e' risolto"), TM->IsResolving())) { return false; }
+
+	int32 PushAmount = -1, DischargeAmount = -1;
+	const int32 PushEntries = BbCombatEntries(TM, FName(TEXT("Action.Push")), PushAmount);
+	const int32 DischargeEntries = BbCombatEntries(TM, FName(TEXT("Hero.Gadget.LinearDischarge")), DischargeAmount);
+	// Senza la voce della spinta il colpo a `Power` 0 non sarebbe mai esistito, e la guardia non sarebbe in gioco.
+	if (!TestEqual(TEXT("premessa: la spinta ha raggiunto Riktor come colpo"), PushEntries, 1)
+		|| !TestEqual(TEXT("premessa: la scarica ha raggiunto Riktor"), DischargeEntries, 1))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("il +60 va alla scarica, il primo colpo che fa danno: floor(300 x 100/145) = 206"), DischargeAmount,
+		URTCombatLibrary::MitigateDirectDamage(BbDischargePower + URTCombatLibrary::MarkedFirstHitBonus, 0, 100, BbTargetDefense));
+	TestEqual(TEXT("la spinta resta senza danno: il marchio non l'ha presa (sarebbe 41)"), PushAmount, 0);
+	TestEqual(TEXT("HP persi: 206"), StartHealth - Riktor->Health, 206);
+	TestEqual(TEXT("il marchio e' incassato una volta"),
+		BbStatusEntries(TM, TAG_Status_Marked, ERTStatusOutcome::Spent), 1);
+	TestFalse(TEXT("e non c'e' piu'"), Riktor->HasStatus(TAG_Status_Marked));
 	return true;
 }
 

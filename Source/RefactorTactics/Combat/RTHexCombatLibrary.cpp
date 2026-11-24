@@ -416,7 +416,9 @@ namespace
 			Hit.DefenseApplied);
 		if (Hit.Power > 0)
 		{
-			Hit.Power += After - Before;
+			// Il clamp non serve a nessun chiamante di oggi (`Exposed` e i due bonus fanno solo crescere il colpo): tiene
+			// la regola «un danno non scende sotto 0» anche per una Base che cala, cioe' un `Bonus` negativo.
+			Hit.Power = FMath::Max(0, Hit.Power + (After - Before));
 		}
 		else
 		{

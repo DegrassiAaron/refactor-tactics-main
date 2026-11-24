@@ -6789,9 +6789,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// `Status.Exposed` ([D-595] (2); E53 CP 53.3b): moltiplicatore 1,2 in `Mod` sul PRIMO colpo che fa danno a chi ha
 	// scattato allo scoperto, con o senza elemento (Ruling 3 del #4189: lettura del controller su «diretto», ribaltabile),
 	// PRIMA della difesa e della copertura — cioe' ricalcolando il colpo del piano, dove spalle, difesa e nominale sono
-	// ancora noti. Viene PRIMA del marchio e del bonus condizionale, ma dal #4189 l'ordine non cambia il numero: i due
-	// bonus entrano nel Base ricalcolando con il `Mod` che il colpo porta, quindi il 120 li moltiplica comunque
-	// ([D-634] (35)). Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come per il marchio, e NON si
+	// ancora noti. Viene PRIMA del marchio e del bonus condizionale, e dal #4189 l'ordine non cambia il numero **sullo
+	// stesso colpo**: i due bonus entrano nel Base ricalcolando con il `Mod` che il colpo porta, quindi il 120 li
+	// moltiplica comunque ([D-634] (35)). ⚠️ Cambia invece CHI e' idoneo: `Exposed` e il marchio scelgono il loro colpo
+	// prima del +80, quindi una LinearDischarge che la copertura aveva azzerato e che il +80 riporta sopra zero non e'
+	// mai stata vista da nessuno dei due. Lo stato si legge congelato (`HasStatus` all'inizio del Blast), come per il marchio, e NON si
 	// consuma: dura i suoi turni ([D-116]) e vale sul primo colpo di ogni Blast.
 	//
 	// ⏱️ *Fino al 2026-11-10 era un `+5` (poi `+50`) piatto sommato DOPO la copertura da `ApplyFirstHitDelta`, con il
@@ -7133,10 +7135,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// La riduzione della Guardia viene per ULTIMA, dopo i modificatori del danno: si clampa a 0 (una riduzione non cura),
-	// quindi applicata prima dei delta che AGGIUNGONO (`Status.Marked`, il bonus condizionale, e fino al 2026-11-10
-	// `Status.Exposed`) ne perderebbe l'avanzo — 100 meno 150 fa 0 e il +60 che segue lo riporta a 60, mentre 100 piu'
-	// 60 meno 150 fa 10. `Exposed` oggi moltiplica la Base PRIMA della DEF e della copertura (CP 53.3b), ancora piu' a monte.
-	// ⏱️ *Fino al 2026-09-20 la ragione era quella del pool ([D-292]): coprire cio' che resta, non il danno nominale.*
+	// quindi applicata prima di un modificatore che AGGIUNGE ne perderebbe l'avanzo. Oggi nessuno sta a valle: `Exposed`
+	// moltiplica la Base PRIMA della difesa e della copertura (CP 53.3b), e dal #4189 il marchio e il +80 contro `Wet`
+	// stanno nel Base, prima della difesa, moltiplicati dal `Mod` ([D-634] (35)) — tutti a monte, sul piano.
+	// ⏱️ *Fino al #4189 il marchio e il bonus condizionale erano delta che AGGIUNGEVANO a `Power` gia' mitigato (e fino al
+	// 2026-11-10 anche `Status.Exposed`), ed era il caso che questo ordine proteggeva: 100 meno 150 fa 0 e il +60 che
+	// segue lo riporta a 60, mentre 100 piu' 60 meno 150 fa 10. Fino al 2026-09-20 la ragione era quella del pool
+	// ([D-292]): coprire cio' che resta, non il danno nominale.*
 	//
 	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
 	// scrivere le chiamate. Le due maschere sono parzialmente sovrapposte (`Guard` e' un sottoinsieme di

@@ -12,9 +12,10 @@
  * sistema fallirebbe in silenzio — *«widget osserva delta HP -> deduce un attacco»*.
  *
  * ⚠️ **`Amount` e' il danno NOMINALE, non gli HP persi, ed e' una convenzione DICHIARATA.** Per un
- * `Attack` vale `Hit.Power`, cioe' la potenza dell'intento dopo spalle e DEF ([D-589], CP 53.2c), il ×1,2 di
- * `Exposed` sul primo colpo ([D-595] (2), CP 53.3b), i delta piatti del marchio e del bonus condizionale, **meno la
- * copertura** (`URTHexCombatLibrary::CollectHexAttacks` e i pass del Blast): Deflect, Guard e Brace agiscono dopo, su un array diverso
+ * `Attack` vale `Hit.Power`, cioe' la potenza dell'intento piu' il marchio e il +80 contro `Wet`, che stanno nel Base
+ * ([D-634] (35), #4189), con le spalle, il ×1,2 di `Exposed` sul primo colpo ([D-595] (2), CP 53.3b) che moltiplica anche
+ * i due bonus, e la difesa — DEF o RES dell'elemento — ([D-589], CP 53.2c), **meno la copertura**
+ * (`URTHexCombatLibrary::CollectHexAttacks` e i pass del Blast): Deflect, Guard e Brace agiscono dopo, su un array diverso
  * (`ApplyDamageDelta`, `ApplyAbsorptionPool` e `ApplyEligibleHitDelta` in `ResolveCombatPasses`), e lo scudo assorbe piu' a valle ancora. 🔑 Ne segue che
  * un colpo da 30 su un bersaglio in Brace con scudo mostra `-30` mentre la barra scende di meno o di
  * niente: **e' voluto**. E' la stessa convenzione che `#2460` ha fissato per `HazardDamage`, e cambiarla

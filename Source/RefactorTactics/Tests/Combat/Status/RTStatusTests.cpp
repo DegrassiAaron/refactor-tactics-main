@@ -449,7 +449,7 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	// perche' un marchio che arrivasse dopo i colpi non servirebbe a nulla" — quindi il marchio vale per i
 	// colpi dello STESSO Blast a priorita' piu' alta (`Action.PrecisionAttack` e' 60).
 	//
-	// Due attaccanti alleati sullo stesso bersaglio: il +6 si somma UNA volta sola. Con un attaccante solo,
+	// Due attaccanti alleati sullo stesso bersaglio: il +60 si somma UNA volta sola. Con un attaccante solo,
 	// un bonus applicato a ogni colpo sarebbe indistinguibile da un bonus consumato correttamente.
 	UWorld* World = MakeStatusWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -465,7 +465,7 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	const int32 MarkIdx = AddCoreAction(Marker, TEXT("Action.MarkTarget"), /*Range*/ 4);
 	const int32 Hit1Idx = AddCoreAction(Ally1, TEXT("Action.PrecisionAttack"), /*Range*/ 4);
 	const int32 Hit2Idx = AddCoreAction(Ally2, TEXT("Action.PrecisionAttack"), /*Range*/ 4);
-	const int32 BasicDamage = Ally1->Abilities[Hit1Idx]->Power; // 24 dal catalogo
+	const int32 BasicDamage = Ally1->Abilities[Hit1Idx]->Power; // 240 dal catalogo
 	if (!TestTrue(TEXT("l'attacco di precisione del catalogo fa danno"), BasicDamage > 0))
 	{
 		DestroyStatusWorld(World);
@@ -488,7 +488,7 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 
 	RunStatusTurn(TM);
 
-	// Due colpi base + un solo marchio: 2*base + 6, non 2*base + 12.
+	// Due colpi base + un solo marchio: 2*base + 60, non 2*base + 120 (DEF 0: il Base e' il colpo, [D-634] (35)).
 	TestEqual(TEXT("il marchio vale una volta sola, sui colpi dello stesso Blast"),
 		StartHealth - Victim->Health, 2 * BasicDamage + URTCombatLibrary::MarkedFirstHitBonus);
 	TestFalse(TEXT("il marchio e' stato consumato"), Victim->HasStatus(TAG_Status_Marked));
@@ -543,9 +543,9 @@ bool FRTStatusMarkedEnemyHitDoesNotConsumeTest::RunTest(const FString&)
 
 	RunStatusTurn(TM);
 
-	// 24 (alleato del marcatore) + 6 (marchio speso una volta) + 18 (fuoco amico, senza bonus) = 48.
-	// Se il fuoco amico avesse consumato il marchio per primo, il totale sarebbe 42: il test distingue i casi.
-	TestEqual(TEXT("il +6 lo prende solo la squadra del marcatore, e una volta sola"),
+	// 240 (alleato del marcatore) + 60 (marchio speso una volta) + 180 (fuoco amico, senza bonus) = 480.
+	// Se il fuoco amico avesse consumato il marchio per primo, il totale sarebbe 420: il test distingue i casi.
+	TestEqual(TEXT("il +60 lo prende solo la squadra del marcatore, e una volta sola"),
 		StartHealth - Victim->Health, ShotDamage + AoEDamage + URTCombatLibrary::MarkedFirstHitBonus);
 
 	DestroyStatusWorld(World);
