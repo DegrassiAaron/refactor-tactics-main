@@ -31,6 +31,9 @@
 > ([D-620](../../decisions/RT_PDR_00_Decision_Log.md) (5), [#4138](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4138)). Come mostrarlo è aperto: il lucchetto
 > del documento è una proposta. **Non entrano**: il Combo Risk Meter (per ora), il Combo Snap, il Syntax Ring a tre segmenti, il Codex, il Combo Lab, i cinque
 > archetipi di HUD e i moduli di debito universali dell'Overclock (D-620 (3)(4)).
+>
+> ➕ **2026-11-27 — la pianificazione sulla mappa** ([D-635](../../decisions/RT_PDR_00_Decision_Log.md), disegno [`2026-11-27-pianificazione-aree-ed-effetto-design.md`](../../superpowers/specs/2026-11-27-pianificazione-aree-ed-effetto-design.md), epic [#4191](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4191)): la mappa è pulita di norma e le aree sono un bordo luminoso; il bordo del singolo esagono compare a contesto o col tasto; il movimento ha tre fasce; con una skill attiva si vedono celle colpite ed effetto previsto; il tooltip sul nemico cambia righe; il ghost del piano è il personaggio semitrasparente con le icone. 
+> ⏳ **Non è ancora in codice**: le sezioni toccate (§3 per la griglia, §4.2 per le aree, §4.2.2 e §18 per lo sguardo, §9 per il ghost, §16 per la certezza) descrivono il comportamento in vigore e si aggiornano con la fetta che lo cambia.
 
 ---
 
