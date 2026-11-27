@@ -10,6 +10,8 @@
 > browser; colori, numeri, icone e nomi delle skill sono d'esempio.
 > **Decisioni**: nessuna `D-nnn` è assegnata qui. I numeri si misurano quando si scrive la riga, e valgono al merge.
 >
+> ➕ **2026-11-27, dopo l'approvazione**: le scelte sono registrate in [`D-635`](../../decisions/RT_PDR_00_Decision_Log.md). Epic [#4191](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4191); la prima fetta è [#4192](https://github.com/DegrassiAaron/refactor-tactics-main/issues/4192), col suo piano in [`2026-11-27-aree-a-bordo-fetta-1.md`](../plans/2026-11-27-aree-a-bordo-fetta-1.md).
+>
 > Convenzione: niente totali che cambiano da soli. Dove serve una misura c'è il comando o la funzione che la produce.
 
 ## 1. Perché
