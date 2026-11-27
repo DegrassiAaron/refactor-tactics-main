@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tre modi di disegnare le aree</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#131821; --panel2:#1a2130; --line:#283244;
+    --text:#e9eef6; --muted:#93a0b5; --accent:#00e0ff;
+    --sneak:#ffd60a; --move:#35c759; --sprint:#2f8bff; --range:#af52de; --attack:#ff453a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,"Segoe UI",sans-serif}
+  .wrap{max-width:1560px;margin:0 auto;padding:28px 24px 90px}
+  h1{font-size:24px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:17px;margin:30px 0 8px}
+  .sub{color:var(--muted);margin:0 0 16px;max-width:86ch}
+  .bar{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:13.5px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sep{flex:1}
+  kbd{font:600 12px/1 ui-monospace,Consolas,monospace;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:3px 6px}
+  button.tgl{font:inherit;font-size:13px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+  button.tgl[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+  .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+  @media (max-width:1100px){.cols{grid-template-columns:1fr}}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .col.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .col > header{padding:11px 14px 10px;border-bottom:1px solid var(--line)}
+  .col > header .k{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.08em}
+  .col > header h3{margin:1px 0 2px;font-size:17px}
+  .col > header p{margin:0;color:var(--muted);font-size:13px}
+  .lab{padding:6px 14px;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:#0e1219;border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
+  .col > header + .lab{border-top:0}
+  .stage{position:relative;background:#06080c;cursor:crosshair}
+  .stage svg{display:block;width:100%;height:auto}
+  .pc{padding:10px 14px 4px;font-size:13.5px;color:var(--muted);flex:1}
+  .pc b{color:var(--text);font-weight:600}
+  .pc p{margin:0 0 6px}
+  .pick{margin:8px 14px 14px;font:inherit;font-weight:600;color:var(--text);background:var(--panel2);border:1px solid #3b4a63;border-radius:8px;padding:9px 12px;cursor:pointer}
+  .pick:hover{border-color:var(--accent)}
+  .col.selected .pick{background:var(--accent);color:#06080c;border-color:var(--accent)}
+  .contorni{display:none}
+  body.contorni-on .contorni{display:inline}
+  .refs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 26px;margin:0;padding:0;list-style:none;font-size:13.5px;color:var(--muted)}
+  @media (max-width:900px){.refs{grid-template-columns:1fr}}
+  .refs b{color:var(--text);font-weight:600}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+  .foot{margin-top:24px;color:var(--muted);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Quale di questi tre modi di disegnare le aree si avvicina a quello che hai in mente?</h1>
+  <p class="sub">La mappa di norma è pulita: nessun esagono evidenziato, nessun contorno. Con un'unità selezionata compare il movimento, con una skill attiva la sua portata. Muovi il mouse sulle tavole: il bordo dell'esagono compare solo dove serve.</p>
+
+  <div class="bar">
+    <span class="chip"><i class="sw" style="background:var(--sneak)"></i>silenzioso</span>
+    <span class="chip"><i class="sw" style="background:var(--move)"></i>movimento</span>
+    <span class="chip"><i class="sw" style="background:var(--sprint)"></i>corsa</span>
+    <span class="chip"><i class="sw" style="background:var(--range)"></i>portata della skill</span>
+    <span class="chip"><i class="sw" style="background:var(--attack)"></i>celle colpite</span>
+    <span class="sep"></span>
+    <span class="chip">Tieni premuto <kbd>Maiusc</kbd> per i contorni di tutti gli esagoni</span>
+    <button class="tgl" id="btnContorni" aria-pressed="false" type="button">contorni fissi</button>
+  </div>
+
+  <div class="cols" id="cols">
+    <section class="col" data-style="bordo">
+      <header><div class="k">A</div><h3>Solo il bordo</h3><p>Come XCOM 2: una linea luminosa attorno all'area, niente dentro.</p></header>
+      <div class="lab">Unità selezionata, nessuna skill</div>
+      <div class="stage" data-mode="move"></div>
+      <div class="lab">Skill attiva</div>
+      <div class="stage" data-mode="skill"></div>
+      <div class="pc">
+        <p><b>Dà:</b> la mappa più pulita. Fuoco, acqua e coperture restano del loro colore.</p>
+        <p><b>Costa:</b> dentro l'area le celle non si contano a occhio: serve il mouse o il tasto.</p>
+      </div>
+      <button class="pick" type="button" data-choice="bordo">Scelgo A · solo il bordo</button>
+    </section>
+
+    <section class="col" data-style="punti">
+      <header><div class="k">B</div><h3>Bordo e punti</h3><p>Come BattleTech: un punto al centro di ogni cella raggiungibile.</p></header>
+      <div class="lab">Unità selezionata, nessuna skill</div>
+      <div class="stage" data-mode="move"></div>
+      <div class="lab">Skill attiva</div>
+      <div class="stage" data-mode="skill"></div>
+      <div class="pc">
+        <p><b>Dà:</b> le celle si contano senza tasto, e il terreno resta leggibile.</p>
+        <p><b>Costa:</b> con la corsa i punti sono tanti e fanno rumore.</p>
+      </div>
+      <button class="pick" type="button" data-choice="punti">Scelgo B · bordo e punti</button>
+    </section>
+
+    <section class="col" data-style="velo">
+      <header><div class="k">C</div><h3>Bordo e velo</h3><p>Come la prima tavola che ti ho mostrato, più leggero.</p></header>
+      <div class="lab">Unità selezionata, nessuna skill</div>
+      <div class="stage" data-mode="move"></div>
+      <div class="lab">Skill attiva</div>
+      <div class="stage" data-mode="skill"></div>
+      <div class="pc">
+        <p><b>Dà:</b> le tre fasce si leggono al primo sguardo, anche da lontano.</p>
+        <p><b>Costa:</b> il velo tinge il terreno: l'acqua sotto il verde cambia colore.</p>
+      </div>
+      <button class="pick" type="button" data-choice="velo">Scelgo C · bordo e velo</button>
+    </section>
+  </div>
+
+  <h2>Uguale in tutti e tre</h2>
+  <div class="box">
+    <ul class="refs">
+      <li><b>Sotto il cursore</b> compare il bordo di quell'esagono.</li>
+      <li><b>Lungo il percorso</b> compaiono i bordi delle celle che attraversi, con una linea bianca.</li>
+      <li><b>Le celle colpite</b> dalla skill hanno il loro bordo: lì conta sapere quali sono.</li>
+      <li><b>Col tasto premuto</b> compaiono i bordi di tutti gli esagoni.</li>
+    </ul>
+  </div>
+
+  <h2>Cosa fanno gli altri giochi</h2>
+  <div class="box">
+    <ul class="refs">
+      <li><b>XCOM 2</b>: bordo blu per il movimento e giallo per lo scatto; scudi sulle celle con copertura.</li>
+      <li><b>Atlas Reactor</b>: tenendo premuto Alt, le celle colpite dalla skill si accendono di giallo. Il percorso è una linea bianca.</li>
+      <li><b>Gears Tactics</b>: nessuna griglia visibile. Linea piena se puoi agire sul bersaglio, tratteggiata se lo vedi ma è troppo lontano.</li>
+      <li><b>BattleTech</b>: nessuna griglia; punti attorno all'unità solo mentre scegli dove muovere.</li>
+      <li><b>Civilization VI</b>: la griglia esagonale è un'opzione che si accende e si spegne.</li>
+      <li><b>Into the Breach</b>: gli autori dichiarano di rinunciare a ogni idea bella che tolga chiarezza.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Clicca lo stile che preferisci e rispondi nel terminale. Colori e numeri sono d'esempio.</p>
+</div>
+
+<script>
+(function(){
+  var SQ3=Math.sqrt(3), S=20, K=0.8, R=5;
+  var DIRS=[[1,-1],[1,0],[0,1],[-1,1],[-1,0],[0,-1]];
+  var C={floor:'#8d929b',seam:'#868b94',pillar:'#2b3039',pillarTop:'#4b525e',water:'#3f7fd6',
+         sneak:'#ffd60a',move:'#35c759',sprint:'#2f8bff',range:'#af52de',attack:'#ff453a',ally:'#fa9b0a',
+         own:'#4da3ff',enemy:'#ff6b5e',ink:'#06080c',hp:'#39c6f0'};
+  function key(q,r){return q+','+r;}
+  function unkey(k){var p=k.split(',');return [Number(p[0]),Number(p[1])];}
+  function hd(a,b){var dq=a[0]-b[0],dr=a[1]-b[1];return (Math.abs(dq)+Math.abs(dr)+Math.abs(dq+dr))/2;}
+  var CELLS=[];
+  for(var q=-R;q<=R;q++){for(var r=-R;r<=R;r++){if(hd([q,r],[0,0])<=R){CELLS.push([q,r]);}}}
+  var INMAP=new Set(CELLS.map(function(c){return key(c[0],c[1]);}));
+  function center(q,r){return [S*SQ3*(q+r/2), S*1.5*r*K];}
+  function corner(q,r,i,sc){var c=center(q,r),a=(60*i-90)*Math.PI/180;return [c[0]+S*sc*Math.cos(a), c[1]+S*sc*Math.sin(a)*K];}
+  function f(n){return n.toFixed(1);}
+  function poly(q,r,sc,dy){var out=[];for(var i=0;i<6;i++){var p=corner(q,r,i,sc);out.push(f(p[0])+','+f(p[1]+(dy||0)));}return out.join(' ');}
+
+  var BLOCKED=new Set(['0,-2','1,-2','-1,3','4,-2']);
+  var WATER=new Set(['-3,0','-4,1','-4,0','0,3','1,3']);
+  var U={
+    muiren:{name:'Muiren',q:-2,r:1,team:'own',hp:950,max:950},
+    gadget:{name:'Gadget',q:-4,r:3,team:'own',hp:900,max:900},
+    riktor:{name:'Riktor',q:2,r:1,team:'enemy',hp:1200,max:1200},
+    ivrin:{name:'Ivrin',q:2,r:-4,team:'enemy',hp:870,max:1000}
+  };
+  var from=[U.muiren.q,U.muiren.r], START=key(from[0],from[1]);
+  var OCC=new Map();Object.keys(U).forEach(function(k){OCC.set(key(U[k].q,U[k].r),k);});
+
+  /* ---- raggiungibilità con i genitori, per il percorso ---- */
+  var DIST=new Map(), PAR=new Map();
+  (function(){DIST.set(START,0);var fr=[from];
+    for(var d=1;d<=6;d++){var nx=[];
+      fr.forEach(function(c){DIRS.forEach(function(dd){
+        var n=[c[0]+dd[0],c[1]+dd[1]],k=key(n[0],n[1]);
+        if(DIST.has(k)||BLOCKED.has(k)||!INMAP.has(k)){return;}
+        DIST.set(k,d);PAR.set(k,key(c[0],c[1]));nx.push(n);});});
+      fr=nx;}})();
+  var ZS=new Set(),ZM=new Set(),ZP=new Set();
+  DIST.forEach(function(d,k){ZP.add(k);if(d<=4){ZM.add(k);}if(d<=2){ZS.add(k);}});
+  function band(k){var d=DIST.get(k);return d<=2?'sneak':(d<=4?'move':'sprint');}
+  var BANDNAME={sneak:'silenzioso',move:'movimento',sprint:'corsa'};
+  var RANGE=4, ZR=new Set();
+  CELLS.forEach(function(c){var k=key(c[0],c[1]);if(!BLOCKED.has(k)&&hd(c,from)<=RANGE){ZR.add(k);}});
+
+  function hexLine(a,b){
+    var n=hd(a,b),out=[];
+    for(var i=1;i<=n;i++){var t=i/n;
+      var x=a[0]+(b[0]-a[0])*t+1e-6, z=a[1]+(b[1]-a[1])*t+2e-6, y=-x-z;
+      var rx=Math.round(x),ry=Math.round(y),rz=Math.round(z);
+      var dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z);
+      if(dx>dy&&dx>dz){rx=-ry-rz;}else if(dy>dz){ry=-rx-rz;}else{rz=-rx-ry;}
+      out.push([rx,rz]);}
+    return out;
+  }
+
+  /* ---- mattoni di disegno ---- */
+  function fills(set,colorOf,alpha,skip){
+    var s='';set.forEach(function(k){if(skip&&skip(k)){return;}
+      var c=unkey(k);s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+colorOf(k)+'" fill-opacity="'+alpha+'"/>';});
+    return s;
+  }
+  function perim(set,color,w,op){
+    var s='';set.forEach(function(k){var c=unkey(k);
+      for(var i=0;i<6;i++){var n=key(c[0]+DIRS[i][0],c[1]+DIRS[i][1]);
+        if(!set.has(n)){var a=corner(c[0],c[1],i,1),b=corner(c[0],c[1],(i+1)%6,1);
+          s+='<line x1="'+f(a[0])+'" y1="'+f(a[1])+'" x2="'+f(b[0])+'" y2="'+f(b[1])+'" stroke="'+color+'" stroke-width="'+w+'" stroke-opacity="'+(op||1)+'" stroke-linecap="round"/>';}}});
+    return s;
+  }
+  function cellBorders(set,colorOf,w,op,sc){
+    var s='';set.forEach(function(k){var c=unkey(k);
+      s+='<polygon points="'+poly(c[0],c[1],sc||0.93)+'" fill="none" stroke="'+colorOf(k)+'" stroke-width="'+w+'" stroke-opacity="'+op+'" stroke-linejoin="round"/>';});
+    return s;
+  }
+  function dots(set,colorOf,rad,skip){
+    var s='';set.forEach(function(k){if(skip&&skip(k)){return;}
+      var c=unkey(k),p=center(c[0],c[1]);
+      s+='<ellipse cx="'+f(p[0])+'" cy="'+f(p[1])+'" rx="'+rad+'" ry="'+f(rad*K)+'" fill="'+colorOf(k)+'" stroke="#06080c" stroke-opacity=".55" stroke-width=".8"/>';});
+    return s;
+  }
+  var uidN=0;
+  function glowBorder(set,color,w){
+    var id='cl'+(++uidN),clip='';
+    set.forEach(function(k){var c=unkey(k);clip+='<polygon points="'+poly(c[0],c[1],1.01)+'"/>';});
+    return '<clipPath id="'+id+'">'+clip+'</clipPath><g clip-path="url(#'+id+')"><g filter="url(#soft)">'+perim(set,color,11,0.75)+'</g></g>'+perim(set,color,w||2.4,1);
+  }
+  var DEFS='<defs><filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.6"/></filter>'+
+    '<pattern id="hx" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#3a1512"/><rect width="2" height="4" fill="#ff453a"/></pattern>'+
+    '<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffffff"/></marker></defs>';
+  function floor(){
+    var s='';CELLS.forEach(function(c){var k=key(c[0],c[1]);
+      if(BLOCKED.has(k)){s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+C.pillar+'" stroke="'+C.pillar+'" stroke-width=".8"/>';return;}
+      s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+C.floor+'" stroke="'+C.seam+'" stroke-width=".9"/>';
+      if(WATER.has(k)){s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+C.water+'" fill-opacity=".62" stroke="'+C.water+'" stroke-opacity=".62" stroke-width=".9"/>';}
+    });return s;
+  }
+  function pillars(){
+    var s='';BLOCKED.forEach(function(k){var c=unkey(k);
+      s+='<polygon points="'+poly(c[0],c[1],0.94,-11)+'" fill="'+C.pillarTop+'" stroke="#1a1e25" stroke-width="1"/>';});
+    return s;
+  }
+  function txt(x,y,str,size,fill,weight,anchor){
+    return '<text x="'+f(x)+'" y="'+f(y)+'" font-size="'+size+'" font-weight="'+(weight||500)+'" fill="'+fill+'" text-anchor="'+(anchor||'middle')+'" font-family="system-ui,Segoe UI,sans-serif" paint-order="stroke" stroke="'+C.ink+'" stroke-width="2.8" stroke-linejoin="round">'+str+'</text>';
+  }
+  function pawn(x,y,body,ghost){
+    var d=ghost?' stroke-dasharray="2.5 2"':'';
+    return '<g'+(ghost?' opacity=".5"':'')+'><rect x="'+f(x-5)+'" y="'+f(y-21)+'" width="10" height="19" rx="5" fill="'+body+'" stroke="#10141b" stroke-width="1"'+d+'/>'+
+      '<circle cx="'+f(x)+'" cy="'+f(y-25.5)+'" r="4.7" fill="'+body+'" stroke="#10141b" stroke-width="1"'+d+'/></g>';
+  }
+  function unit(id,pred){
+    var u=U[id],c=center(u.q,u.r),x=c[0],y=c[1],col=u.team==='own'?C.own:C.enemy,body=u.team==='own'?'#d7e8ff':'#ffd9d4',s='';
+    if(id==='muiren'){s+='<ellipse cx="'+f(x)+'" cy="'+f(y)+'" rx="15.5" ry="'+f(15.5*K)+'" fill="none" stroke="#ffffff" stroke-width="1.8"/>';}
+    s+='<ellipse cx="'+f(x)+'" cy="'+f(y)+'" rx="11.5" ry="'+f(11.5*K)+'" fill="'+col+'" fill-opacity=".38" stroke="'+col+'" stroke-width="2.6"/>';
+    s+=pawn(x,y,body,false);
+    s+=txt(x,y-52,u.name,11,u.team==='own'?'#bfe0ff':'#ffc9c2',700);
+    var bw=44,bx=x-bw/2,by=y-48,fr=u.hp/u.max;
+    s+='<rect x="'+f(bx)+'" y="'+f(by)+'" width="'+bw+'" height="4.8" rx="1.5" fill="#1b2230" stroke="#06080c" stroke-width=".8"/>';
+    s+='<rect x="'+f(bx)+'" y="'+f(by)+'" width="'+f(bw*fr)+'" height="4.8" rx="1.5" fill="'+C.hp+'"/>';
+    if(pred!==undefined){var pf=Math.max(0,pred)/u.max;
+      s+='<rect class="predbar" x="'+f(bx+bw*pf)+'" y="'+f(by)+'" width="'+f(bw*(fr-pf))+'" height="4.8" fill="url(#hx)"/>';}
+    return s;
+  }
+  function cursorGlyph(x,y){
+    return '<path transform="translate('+f(x)+','+f(y)+')" d="M0,0 L0,14 L3.6,10.6 L6.2,16 L8.3,15 L5.8,9.8 L10.6,9.8 Z" fill="#ffffff" stroke="#06080c" stroke-width="1.1" stroke-linejoin="round"/>';
+  }
+  function tag(x,y,lines,w,border){
+    var h=15*lines.length+11,s='<g><rect x="'+f(x)+'" y="'+f(y)+'" width="'+w+'" height="'+f(h)+'" rx="5" fill="#0b0f15" fill-opacity=".95" stroke="'+(border||'#ffffff')+'" stroke-opacity=".8" stroke-width="1.2" stroke-dasharray="4 3"/>';
+    lines.forEach(function(l,i){s+='<text x="'+f(x+8)+'" y="'+f(y+16+15*i)+'" font-size="'+(l.size||11)+'" font-weight="'+(l.w||500)+'" fill="'+(l.c||'#e9eef6')+'" font-family="system-ui,Segoe UI,sans-serif">'+l.t+'</text>';});
+    return s+'</g>';
+  }
+  function pill(x,y,str,color){
+    var w=str.length*5.6+16;
+    return '<g><rect x="'+f(x-w/2)+'" y="'+f(y-11)+'" width="'+f(w)+'" height="16" rx="8" fill="#0b0f15" fill-opacity=".94" stroke="'+color+'" stroke-width="1.2"/>'+
+      '<text x="'+f(x)+'" y="'+f(y+0.6)+'" font-size="10.5" font-weight="600" fill="#e9eef6" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif">'+str+'</text></g>';
+  }
+  function bandCol(k){return C[band(k)];}
+  function isOccNotStart(k){return OCC.has(k)&&k!==START;}
+
+  /* ---- i tre stili ---- */
+  var STYLES={
+    bordo:{
+      move:function(){return glowBorder(ZP,C.sprint)+glowBorder(ZM,C.move)+glowBorder(ZS,C.sneak);},
+      range:function(){return glowBorder(ZR,C.range,2.2);},
+      foot:function(set,col){return fills(set,function(){return col;},0.20)+cellBorders(set,function(){return col;},1.6,0.95)+perim(set,col,2.6,1);}
+    },
+    punti:{
+      move:function(){return perim(ZP,C.sprint,1.6,0.9)+perim(ZM,C.move,1.6,0.9)+perim(ZS,C.sneak,1.6,0.9)+dots(ZP,bandCol,2.9,isOccNotStart);},
+      range:function(){return perim(ZR,C.range,1.6,0.9)+dots(ZR,function(){return C.range;},2.6,function(k){return OCC.has(k);});},
+      foot:function(set,col){return cellBorders(set,function(){return col;},1.6,0.95)+dots(set,function(){return col;},5.2,function(k){return OCC.has(k);})+perim(set,col,2.2,1);}
+    },
+    velo:{
+      move:function(){return fills(ZP,bandCol,0.20,isOccNotStart)+perim(ZP,C.sprint,2.2,1)+perim(ZM,C.move,2.2,1)+perim(ZS,C.sneak,2.2,1);},
+      range:function(){return fills(ZR,function(){return C.range;},0.15,function(k){return k===START;})+perim(ZR,C.range,2.2,1);},
+      foot:function(set,col){return fills(set,function(){return col;},0.40)+cellBorders(set,function(){return col;},1.4,0.9)+perim(set,col,2.6,1);}
+    }
+  };
+
+  /* ---- tavola ---- */
+  var VB=(function(){var padL=22,padR=58,padT=62,padB=20,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+    CELLS.forEach(function(c){for(var i=0;i<6;i++){var p=corner(c[0],c[1],i,1);
+      minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}});
+    return [minX-padL,minY-padT,(maxX-minX)+padL+padR,(maxY-minY)+padT+padB];})();
+  var ALLSET=new Set();CELLS.forEach(function(c){var k=key(c[0],c[1]);if(!BLOCKED.has(k)){ALLSET.add(k);}});
+  var ORDER=Object.keys(U).sort(function(a,b){return U[a].r-U[b].r;});
+
+  function build(stage){
+    var st=STYLES[stage.closest('.col').dataset.style], mode=stage.dataset.mode;
+    var area=mode==='move'?ZP:ZR;
+    var layers=mode==='move'?st.move():st.range();
+    var contours=cellBorders(ALLSET,function(k){return area.has(k)?(mode==='move'?bandCol(k):C.range):'#ffffff';},1.2,0.5,1);
+    stage.innerHTML='<svg viewBox="'+VB.map(f).join(' ')+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="tavola">'+DEFS+
+      floor()+layers+'<g class="contorni">'+contours+'</g><g class="under"></g>'+pillars()+'<g class="units"></g><g class="over"></g></svg>';
+    var svg=stage.querySelector('svg'), under=svg.querySelector('.under'), over=svg.querySelector('.over'), units=svg.querySelector('.units');
+
+    function drawUnits(pred){var s='';ORDER.forEach(function(id){s+=unit(id,pred?pred[id]:undefined);});units.innerHTML=s;}
+
+    function showMove(k){
+      var u='',o='',c=unkey(k),p=center(c[0],c[1]);
+      if(!DIST.has(k)||isOccNotStart(k)||k===START){
+        u=cellBorders(new Set([k]),function(){return '#ffffff';},1.4,0.75);
+        under.innerHTML=u;over.innerHTML='';drawUnits();return;}
+      var path=[k],cur=k;while(PAR.has(cur)){cur=PAR.get(cur);path.push(cur);}
+      path.reverse();
+      var pset=new Set(path.slice(1)),col=bandCol(k);
+      u+=cellBorders(pset,function(){return '#ffffff';},1.2,0.6);
+      var pts=path.map(function(pk){var pc=unkey(pk),pp=center(pc[0],pc[1]);return f(pp[0])+','+f(pp[1]);}).join(' ');
+      u+='<polyline points="'+pts+'" fill="none" stroke="#06080c" stroke-opacity=".7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>';
+      u+='<polyline points="'+pts+'" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+      u+=cellBorders(new Set([k]),function(){return col;},2.6,1);
+      u+='<ellipse cx="'+f(p[0])+'" cy="'+f(p[1])+'" rx="4.6" ry="'+f(4.6*K)+'" fill="#ffffff" stroke="#06080c" stroke-width="1"/>';
+      var n=DIST.get(k);
+      o+=pill(p[0],p[1]-20,BANDNAME[band(k)]+' · '+n+(n===1?' cella':' celle'),col);
+      under.innerHTML=u;over.innerHTML=o;drawUnits();
+    }
+
+    function showSkill(k){
+      var u='',o='',c=unkey(k),p=center(c[0],c[1]),m=center(from[0],from[1]);
+      if(BLOCKED.has(k)||k===START){under.innerHTML='';over.innerHTML='';drawUnits();return;}
+      if(!ZR.has(k)){
+        u=cellBorders(new Set([k]),function(){return '#ffffff';},1.4,0.75);
+        u+='<line x1="'+f(m[0])+'" y1="'+f(m[1])+'" x2="'+f(p[0])+'" y2="'+f(p[1])+'" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="5 4"/>';
+        var bx=p[0]+17,by=p[1]-6;
+        o+='<circle cx="'+f(bx)+'" cy="'+f(by)+'" r="9" fill="#0b0f15" stroke="'+C.attack+'" stroke-width="2.4"/><line x1="'+f(bx-6)+'" y1="'+f(by+6)+'" x2="'+f(bx+6)+'" y2="'+f(by-6)+'" stroke="'+C.attack+'" stroke-width="2.4" stroke-linecap="round"/>';
+        o+=pill(bx+2,by+24,'fuori portata',C.attack);
+        under.innerHTML=u;over.innerHTML=o;drawUnits();return;}
+      var line=hexLine(from,c),hit=new Set(),allyHit=new Set(),pred={},tags='';
+      line.forEach(function(lc){var lk=key(lc[0],lc[1]);if(BLOCKED.has(lk)){return;}
+        var who=OCC.get(lk);if(who&&U[who].team==='own'){allyHit.add(lk);}else{hit.add(lk);}});
+      u+=st.foot(hit,C.attack);
+      if(allyHit.size){u+=st.foot(allyHit,C.ally);}
+      u+='<line x1="'+f(m[0])+'" y1="'+f(m[1])+'" x2="'+f(p[0])+'" y2="'+f(p[1])+'" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.5"/>';
+      line.forEach(function(lc,i){var lk=key(lc[0],lc[1]),who=OCC.get(lk);if(!who){return;}
+        var uu=U[who],uc=center(uu.q,uu.r);
+        if(uu.team==='enemy'){
+          pred[who]=uu.hp-210;
+          var prev=i>0?line[i-1]:from, dq=lc[0]-prev[0], dr=lc[1]-prev[1], gk=key(lc[0]+dq,lc[1]+dr);
+          var canPush=INMAP.has(gk)&&!BLOCKED.has(gk)&&!OCC.has(gk);
+          if(canPush){var g=center(lc[0]+dq,lc[1]+dr);
+            tags+='<line x1="'+f(uc[0]+(g[0]-uc[0])*0.3)+'" y1="'+f(uc[1]+(g[1]-uc[1])*0.3-9)+'" x2="'+f(uc[0]+(g[0]-uc[0])*0.9)+'" y2="'+f(uc[1]+(g[1]-uc[1])*0.9-9)+'" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="3 2.5" marker-end="url(#ah)"/>';
+            tags+='<ellipse cx="'+f(g[0])+'" cy="'+f(g[1])+'" rx="11.5" ry="'+f(11.5*K)+'" fill="none" stroke="'+C.enemy+'" stroke-width="1.6" stroke-dasharray="3 2.5"/>'+pawn(g[0],g[1],'#ffd9d4',true);}
+          tags+=tag(uc[0]+14,uc[1]+16,[
+            {t:'≈ −210 PV',c:'#ff6b5e',w:700,size:13.5},
+            {t:'Bagnato · 2 turni'},
+            {t:canPush?'Spinta di 1 cella':'Spinta: bloccata'},
+            {t:'previsto: se resta lì',c:'#93a0b5',size:9.6}],124);
+        }else{
+          pred[who]=uu.hp-210;
+          tags+=tag(uc[0]+14,uc[1]+16,[
+            {t:'Fuoco amico',c:'#fa9b0a',w:700,size:13},
+            {t:'≈ −210 PV',c:'#fa9b0a',w:600}],104,'#fa9b0a');
+        }});
+      under.innerHTML=u;over.innerHTML=tags;drawUnits(pred);
+    }
+
+    var show=mode==='move'?showMove:showSkill;
+    var DEF=mode==='move'?key(0,3):key(U.riktor.q,U.riktor.r);
+    function restore(){show(DEF);
+      var dc=unkey(DEF),dp=center(dc[0],dc[1]);
+      over.insertAdjacentHTML('beforeend',cursorGlyph(dp[0]-3,dp[1]-(mode==='move'?4:13)));}
+    function cellAt(e){
+      var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+      var m=svg.getScreenCTM();if(!m){return null;}
+      var q=pt.matrixTransform(m.inverse()),best=null,bd=1e9;
+      CELLS.forEach(function(c){var p=center(c[0],c[1]),dx=q.x-p[0],dy=(q.y-p[1])/K,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}});
+      return bd<=S*S?key(best[0],best[1]):null;
+    }
+    var last=null;
+    stage.addEventListener('mousemove',function(e){var k=cellAt(e);if(k===last){return;}last=k;
+      if(k){show(k);}else{under.innerHTML='';over.innerHTML='';drawUnits();}});
+    stage.addEventListener('mouseleave',function(){last=null;restore();});
+    restore();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.stage'),build);
+
+  /* ---- scelta e tasto ---- */
+  var cols=Array.prototype.slice.call(document.querySelectorAll('.col'));
+  Array.prototype.forEach.call(document.querySelectorAll('.pick'),function(b){
+    b.addEventListener('click',function(){cols.forEach(function(c){c.classList.remove('selected');});b.closest('.col').classList.add('selected');});});
+  var btn=document.getElementById('btnContorni'),fixed=false;
+  function setOn(on){document.body.classList.toggle('contorni-on',on||fixed);}
+  window.addEventListener('keydown',function(e){if(e.key==='Shift'){setOn(true);}});
+  window.addEventListener('keyup',function(e){if(e.key==='Shift'){setOn(false);}});
+  window.addEventListener('blur',function(){setOn(false);});
+  btn.addEventListener('click',function(){fixed=!fixed;btn.setAttribute('aria-pressed',fixed);setOn(false);});
+})();
+</script>
+</body>
+</html>

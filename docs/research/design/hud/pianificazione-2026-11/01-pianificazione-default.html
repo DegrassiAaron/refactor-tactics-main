@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pianificazione: cosa si vede di default</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#131821; --panel2:#1a2130; --line:#283244;
+    --text:#e9eef6; --muted:#93a0b5; --accent:#00e0ff;
+    --sneak:#ffd60a; --move:#35c759; --sprint:#2f8bff; --range:#af52de; --attack:#ff453a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,"Segoe UI",sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 24px 90px}
+  h1{font-size:24px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:18px;margin:38px 0 4px}
+  .sub{color:var(--muted);margin:0 0 18px;max-width:78ch}
+  .bar{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 6px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--text)}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  kbd{font:600 12px/1 ui-monospace,Consolas,monospace;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:3px 6px;color:var(--text)}
+  button.tgl{font:inherit;font-size:13px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+  button.tgl[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+  .sep{flex:1}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:14px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .tav{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .tav > header{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline}
+  .tav > header b{color:var(--accent);font-size:12px;letter-spacing:.08em}
+  .tav > header span{font-weight:600}
+  .stage{position:relative;background:#06080c}
+  .stage svg{display:block;width:100%;height:auto}
+  .cap{padding:10px 14px 12px;color:var(--muted);font-size:13.5px;border-top:1px solid var(--line)}
+  .cap strong{color:var(--text);font-weight:600}
+  .contorni{display:none}
+  body.contorni-on .contorni, .sempre .contorni{display:inline}
+  .dock{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;background:#0e1219;border-top:1px solid var(--line)}
+  .slot{position:relative;font-size:11.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 8px;white-space:nowrap}
+  .slot.armed{color:var(--text);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .slot.bad{border-color:var(--attack);box-shadow:0 0 0 1px var(--attack) inset}
+  .slot.bad::after{content:"\2715";position:absolute;top:-8px;right:-7px;width:17px;height:17px;border-radius:50%;background:var(--attack);color:#fff;font:700 10px/17px system-ui;text-align:center}
+  .ap{margin-left:auto;font:600 11.5px/1 ui-monospace,Consolas,monospace;color:var(--accent);letter-spacing:.06em}
+  .ap i{font-style:normal;color:#ffd456}
+  .why{font-size:11.5px;color:#ffb3ad;margin-left:4px}
+  .two{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}
+  @media (max-width:900px){.two{grid-template-columns:1fr}}
+  .side{border-left:1px solid var(--line);padding:12px 14px 14px}
+  @media (max-width:900px){.side{border-left:0;border-top:1px solid var(--line)}}
+  .side h3{font-size:14px;margin:0 0 2px}
+  .side p{margin:0 0 10px;color:var(--muted);font-size:13px}
+  .cands{display:flex;flex-direction:column;gap:6px}
+  .cand{display:grid;grid-template-columns:20px 1fr;gap:8px;align-items:start;text-align:left;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 9px;cursor:pointer}
+  .cand:hover{border-color:#3b4a63}
+  .cand .box{width:16px;height:16px;border-radius:4px;border:1.5px solid #51607a;margin-top:2px;display:grid;place-items:center;font:700 11px/1 system-ui;color:#06080c}
+  .cand.selected{border-color:var(--accent)}
+  .cand.selected .box{background:var(--accent);border-color:var(--accent)}
+  .cand.selected .box::after{content:"\2713"}
+  .cand .t{font-size:13.5px;line-height:1.3}
+  .cand .n{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+  .star{color:#ffd456}
+  .never{margin-top:10px;font-size:12.5px;color:#ffb3ad;border:1px dashed #6b3a3a;border-radius:7px;padding:7px 9px}
+  .tip{position:absolute;width:45%;min-width:230px;background:rgba(11,15,21,.96);border:1px solid #3a475c;border-left:3px solid #ff6b5e;border-radius:7px;padding:9px 11px 10px;font-size:12.5px;line-height:1.35;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .tip .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .tip .hd b{font-size:14px;letter-spacing:.02em}
+  .tip .hd small{color:var(--muted);font-size:11px}
+  .tip .row{display:grid;grid-template-columns:78px 1fr;gap:8px;padding:3px 0;border-top:1px solid #222b3a}
+  .tip .row[hidden]{display:none}
+  .tip .row span:first-child{color:var(--muted)}
+  .tip .empty{color:var(--muted);font-style:italic;border-top:1px solid #222b3a;padding-top:4px}
+  .foot{margin-top:26px;color:var(--muted);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Pianificazione: cosa si vede di default</h1>
+  <p class="sub">Qui c'è come ho letto la tua descrizione. Colori esatti, numeri e nomi delle skill sono d'esempio: servono a giudicare la regola, non il valore.</p>
+
+  <div class="bar">
+    <span class="chip"><i class="sw" style="background:var(--sneak)"></i>silenzioso</span>
+    <span class="chip"><i class="sw" style="background:var(--move)"></i>movimento</span>
+    <span class="chip"><i class="sw" style="background:var(--sprint)"></i>corsa</span>
+    <span class="chip"><i class="sw" style="background:var(--range)"></i>portata della skill</span>
+    <span class="chip"><i class="sw" style="background:var(--attack)"></i>celle colpite</span>
+    <span class="sep"></span>
+    <span class="chip">Tieni premuto <kbd>Maiusc</kbd> per vedere i contorni su tutte le tavole</span>
+    <button class="tgl" id="btnContorni" aria-pressed="false" type="button">contorni fissi</button>
+  </div>
+
+  <h2>1. Le quattro situazioni</h2>
+  <div class="grid">
+    <section class="tav">
+      <header><b>A</b><span>Nessuna skill attiva: il movimento</span></header>
+      <div class="stage" id="sA"></div>
+      <div class="cap"><strong>Di default vedi aree, non esagoni contornati.</strong> Giallo dove arrivi in silenzio, verde col movimento, blu solo di corsa. Ogni area ha un solo bordo esterno.</div>
+    </section>
+
+    <section class="tav sempre">
+      <header><b>B</b><span>La stessa scena col tasto premuto</span></header>
+      <div class="stage" id="sB"></div>
+      <div class="cap"><strong>Col tasto compaiono i contorni di ogni esagono</strong>, per contare le celle. Rilasciando il tasto spariscono.</div>
+    </section>
+
+    <section class="tav">
+      <header><b>C</b><span>Skill attiva, bersaglio valido</span></header>
+      <div class="stage" id="sC"></div>
+      <div class="dock">
+        <span class="slot">Attesa</span><span class="slot">Guardia</span><span class="slot armed">Getto in pressione</span><span class="slot">Marea circolare</span><span class="slot">Scia fluida</span><span class="slot">Velo di nebbia</span>
+        <span class="ap">AP <i>&#9646;&#9646;</i>&#9647;&#9647;&#9647;&#9647;</span>
+      </div>
+      <div class="cap"><strong>Il movimento lascia il posto alla skill.</strong> Viola fin dove arriva, rosso le celle colpite sotto il cursore. Sul bersaglio l'effetto: danno, stato, spinta. Il bordo tratteggiato dice che è una previsione.</div>
+    </section>
+
+    <section class="tav">
+      <header><b>D</b><span>Skill attiva, bersaglio non valido</span></header>
+      <div class="stage" id="sD"></div>
+      <div class="dock">
+        <span class="slot">Attesa</span><span class="slot">Guardia</span><span class="slot armed bad">Getto in pressione</span><span class="why">fuori portata</span><span class="slot">Marea circolare</span><span class="slot">Scia fluida</span>
+        <span class="ap">AP <i>&#9646;&#9646;</i>&#9647;&#9647;&#9647;&#9647;</span>
+      </div>
+      <div class="cap"><strong>Nessun effetto, solo un'icona.</strong> Qui la mostro in due posti: accanto al cursore (1) e sulla skill nella barra (2), che esiste già oggi.</div>
+    </section>
+  </div>
+
+  <h2>2. Passando su un nemico, senza skill attiva</h2>
+  <p class="sub">Spunta le righe che vuoi: il tooltip sulla mappa cambia subito. La stella segna la mia proposta.</p>
+  <section class="tav">
+    <div class="two">
+      <div>
+        <div class="stage" id="sE">
+          <div class="tip" id="tip">
+            <div class="hd"><b>Riktor</b><small>nemico, in vista</small></div>
+            <div class="row" data-row="hp"><span>Vita</span><span>PV 1200 / 1200 &middot; scudo 50</span></div>
+            <div class="row" data-row="stati"><span>Stati</span><span>Rallentato &middot; 1 turno: movimento ridotto</span></div>
+            <div class="row" data-row="difese"><span>Difese</span><span>DEF 30 &middot; RES Fulmine 10</span></div>
+            <div class="row" data-row="minaccia"><span>Colpisce</span><span>fino a 5 celle (Colpo a impatto)</span></div>
+            <div class="row" data-row="mov"><span>Si muove</span><span>di 4 celle &middot; di corsa 8</span></div>
+            <div class="row" data-row="visto"><span>Visto usare</span><span>Ariete al turno 2: forse di nuovo pronta</span></div>
+            <div class="row" data-row="verso"><span>Verso</span><span>guarda a Ovest, le spalle sono a Est</span></div>
+            <div class="row" data-row="cop"><span>Copertura</span><span>riparato a Ovest (bassa)</span></div>
+            <div class="row" data-row="reaz"><span>Reazioni</span><span>il suo kit ne ha una: Interposizione</span></div>
+            <div class="row" data-row="ultima"><span>Turno scorso</span><span>Colpo a impatto su Muiren</span></div>
+            <div class="row" data-row="quota"><span>Quota</span><span>piano 0</span></div>
+            <div class="empty" id="tipEmpty" hidden>solo il nome</div>
+          </div>
+        </div>
+        <div class="cap"><strong>Le tue aree di movimento restano.</strong> Il tooltip compare accanto al nemico e non sposta niente sulla mappa.</div>
+      </div>
+      <div class="side">
+        <h3>Cosa mostra il tooltip</h3>
+        <p>La barra sopra la testa dice già nome, PV, scudo e icone di stato.</p>
+        <div class="cands" id="cands">
+          <button type="button" class="cand" data-choice="stati"><span class="box"></span><span class="t"><span class="star">&#9733;</span> Stati attivi, con cosa fanno e quanti turni restano<span class="n">oggi: nello sguardo all'hover</span></span></button>
+          <button type="button" class="cand" data-choice="minaccia"><span class="box"></span><span class="t"><span class="star">&#9733;</span> Fin dove può colpire<span class="n">nuovo. Dalle skill del suo kit, mai dal suo piano</span></span></button>
+          <button type="button" class="cand" data-choice="mov"><span class="box"></span><span class="t"><span class="star">&#9733;</span> Quanto può muoversi<span class="n">oggi: come area, solo dopo il click</span></span></button>
+          <button type="button" class="cand" data-choice="visto"><span class="box"></span><span class="t"><span class="star">&#9733;</span> Skill che gli hai visto usare, con stima della ricarica<span class="n">oggi: nella scheda al click</span></span></button>
+          <button type="button" class="cand" data-choice="difese"><span class="box"></span><span class="t">Difese: DEF e RES<span class="n">nuovo. Serve decidere che siano pubbliche</span></span></button>
+          <button type="button" class="cand" data-choice="hp"><span class="box"></span><span class="t">PV e scudo in numeri<span class="n">ripete la barra sopra la testa</span></span></button>
+          <button type="button" class="cand" data-choice="verso"><span class="box"></span><span class="t">Verso e spalle<span class="n">oggi: nello sguardo, a parole</span></span></button>
+          <button type="button" class="cand" data-choice="cop"><span class="box"></span><span class="t">Copertura: su quali lati è riparato<span class="n">nuovo</span></span></button>
+          <button type="button" class="cand" data-choice="reaz"><span class="box"></span><span class="t">Reazioni che il suo kit ha<span class="n">nuovo. Mai se ne ha armata una</span></span></button>
+          <button type="button" class="cand" data-choice="ultima"><span class="box"></span><span class="t">Cosa ha fatto nel turno scorso<span class="n">nuovo. Solo ciò che la squadra ha visto</span></span></button>
+          <button type="button" class="cand" data-choice="quota"><span class="box"></span><span class="t">Quota o piano<span class="n">oggi: nello sguardo sulla cella</span></span></button>
+        </div>
+        <div class="never">Mai nel tooltip: il suo piano, l'azione armata, le ricariche vere, se una reazione è armata.</div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Rispondi nel terminale: cosa è sbagliato nelle tavole A-D, e quali righe tieni nel tooltip.</p>
+</div>
+
+<script>
+(function(){
+  var SQ3=Math.sqrt(3), S=20, K=0.8, R=5;
+  var DIRS=[[1,-1],[1,0],[0,1],[-1,1],[-1,0],[0,-1]];
+  var C={floor:'#8b9099',seam:'#5b616b',pillar:'#2b3039',pillarTop:'#4b525e',water:'#3f7fd6',
+         sneak:'#ffd60a',move:'#35c759',sprint:'#2f8bff',range:'#af52de',attack:'#ff453a',
+         own:'#4da3ff',enemy:'#ff6b5e',ink:'#06080c',hp:'#39c6f0'};
+  function key(q,r){return q+','+r;}
+  function unkey(k){var p=k.split(',');return [Number(p[0]),Number(p[1])];}
+  function hd(a,b){var dq=a[0]-b[0],dr=a[1]-b[1];return (Math.abs(dq)+Math.abs(dr)+Math.abs(dq+dr))/2;}
+  var CELLS=[];
+  for(var q=-R;q<=R;q++){for(var r=-R;r<=R;r++){if(hd([q,r],[0,0])<=R){CELLS.push([q,r]);}}}
+  function center(q,r){return [S*SQ3*(q+r/2), S*1.5*r*K];}
+  function corner(q,r,i,sc){var c=center(q,r),a=(60*i-90)*Math.PI/180;return [c[0]+S*sc*Math.cos(a), c[1]+S*sc*Math.sin(a)*K];}
+  function f(n){return n.toFixed(1);}
+  function poly(q,r,sc,dy){var out=[];for(var i=0;i<6;i++){var p=corner(q,r,i,sc);out.push(f(p[0])+','+f(p[1]+(dy||0)));}return out.join(' ');}
+
+  var BLOCKED=new Set(['0,-2','1,-2','-1,3','4,-2']);
+  var WATER=new Set(['-3,0','-4,1','-4,0']);
+  var U={
+    muiren:{name:'Muiren',q:-2,r:1,team:'own',hp:950,max:950},
+    gadget:{name:'Gadget',q:-4,r:3,team:'own',hp:900,max:900},
+    riktor:{name:'Riktor',q:2,r:1,team:'enemy',hp:1200,max:1200},
+    ivrin:{name:'Ivrin',q:2,r:-4,team:'enemy',hp:870,max:1000}
+  };
+  var START=key(U.muiren.q,U.muiren.r);
+  var OCC=new Set(Object.keys(U).map(function(k){return key(U[k].q,U[k].r);}));
+
+  function reach(from,max){
+    var seen=new Map();seen.set(key(from[0],from[1]),0);var fr=[from];
+    for(var d=1;d<=max;d++){var nx=[];
+      fr.forEach(function(c){DIRS.forEach(function(dd){
+        var n=[c[0]+dd[0],c[1]+dd[1]],k=key(n[0],n[1]);
+        if(seen.has(k)||BLOCKED.has(k)||hd(n,[0,0])>R){return;}
+        seen.set(k,d);nx.push(n);});});
+      fr=nx;}
+    return seen;
+  }
+  function hexLine(a,b){
+    var n=hd(a,b),out=[];
+    for(var i=1;i<=n;i++){var t=i/n;
+      var x=a[0]+(b[0]-a[0])*t+1e-6, z=a[1]+(b[1]-a[1])*t+1e-6, y=-x-z;
+      var rx=Math.round(x),ry=Math.round(y),rz=Math.round(z);
+      var dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z);
+      if(dx>dy&&dx>dz){rx=-ry-rz;}else if(dy>dz){ry=-rx-rz;}else{rz=-rx-ry;}
+      out.push([rx,rz]);}
+    return out;
+  }
+  function fills(set,colorOf,alpha,skipOcc){
+    var s='';set.forEach(function(k){
+      if(skipOcc&&OCC.has(k)&&k!==START){return;}
+      var c=unkey(k);s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+colorOf(k)+'" fill-opacity="'+alpha+'"/>';});
+    return s;
+  }
+  function perim(set,color,w){
+    var s='';set.forEach(function(k){var c=unkey(k);
+      for(var i=0;i<6;i++){var n=key(c[0]+DIRS[i][0],c[1]+DIRS[i][1]);
+        if(!set.has(n)){var a=corner(c[0],c[1],i,1),b=corner(c[0],c[1],(i+1)%6,1);
+          s+='<line x1="'+f(a[0])+'" y1="'+f(a[1])+'" x2="'+f(b[0])+'" y2="'+f(b[1])+'" stroke="'+color+'" stroke-width="'+w+'" stroke-linecap="round"/>';}}});
+    return s;
+  }
+  function outlines(set,colorOf,skipOcc){
+    var s='';set.forEach(function(k){
+      if(skipOcc&&OCC.has(k)&&k!==START){return;}
+      var c=unkey(k);s+='<polygon points="'+poly(c[0],c[1],0.8)+'" fill="none" stroke="'+colorOf(k)+'" stroke-width="1.7" stroke-linejoin="round"/>';});
+    return s;
+  }
+  var DEFS='<defs><pattern id="hx" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#3a1512"/><rect width="2" height="4" fill="#ff453a"/></pattern>'+
+    '<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffffff"/></marker></defs>';
+
+  function floor(){
+    var s='';CELLS.forEach(function(c){var k=key(c[0],c[1]);
+      if(BLOCKED.has(k)){s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+C.pillar+'" stroke="'+C.seam+'" stroke-width=".8"/>';return;}
+      s+='<polygon points="'+poly(c[0],c[1],1)+'" fill="'+C.floor+'" stroke="'+C.seam+'" stroke-width=".8"/>';
+      if(WATER.has(k)){s+='<polygon points="'+poly(c[0],c[1],0.9)+'" fill="'+C.water+'" fill-opacity=".6"/>';}
+    });return s;
+  }
+  function pillars(){
+    var s='';BLOCKED.forEach(function(k){var c=unkey(k);
+      s+='<polygon points="'+poly(c[0],c[1],0.94,-11)+'" fill="'+C.pillarTop+'" stroke="#1a1e25" stroke-width="1"/>';});
+    return s;
+  }
+  function txt(x,y,str,size,fill,weight,anchor){
+    return '<text x="'+f(x)+'" y="'+f(y)+'" font-size="'+size+'" font-weight="'+(weight||500)+'" fill="'+fill+'" text-anchor="'+(anchor||'middle')+'" font-family="system-ui,Segoe UI,sans-serif" paint-order="stroke" stroke="'+C.ink+'" stroke-width="2.6" stroke-linejoin="round">'+str+'</text>';
+  }
+  function pawn(x,y,body,ghost){
+    var g=ghost?' opacity=".5"':'';
+    return '<g'+g+'><rect x="'+f(x-5)+'" y="'+f(y-21)+'" width="10" height="19" rx="5" fill="'+body+'" stroke="#10141b" stroke-width="1"'+(ghost?' stroke-dasharray="2.5 2"':'')+'/>'+
+      '<circle cx="'+f(x)+'" cy="'+f(y-25.5)+'" r="4.7" fill="'+body+'" stroke="#10141b" stroke-width="1"'+(ghost?' stroke-dasharray="2.5 2"':'')+'/></g>';
+  }
+  function unit(u,o){
+    o=o||{};var c=center(u.q,u.r),x=c[0],y=c[1],col=u.team==='own'?C.own:C.enemy,body=u.team==='own'?'#d7e8ff':'#ffd9d4',s='';
+    if(o.selected){s+='<ellipse cx="'+f(x)+'" cy="'+f(y)+'" rx="15.5" ry="'+f(15.5*K)+'" fill="none" stroke="#ffffff" stroke-width="1.8"/>';}
+    s+='<ellipse cx="'+f(x)+'" cy="'+f(y)+'" rx="11.5" ry="'+f(11.5*K)+'" fill="'+col+'" fill-opacity=".38" stroke="'+col+'" stroke-width="2.6"/>';
+    s+=pawn(x,y,body,false);
+    s+=txt(x,y-52,u.name,10.5,u.team==='own'?'#bfe0ff':'#ffc9c2',700);
+    var bw=44,bx=x-bw/2,by=y-48,fr=u.hp/u.max;
+    s+='<rect x="'+f(bx)+'" y="'+f(by)+'" width="'+bw+'" height="4.6" rx="1.5" fill="#1b2230" stroke="#06080c" stroke-width=".8"/>';
+    s+='<rect x="'+f(bx)+'" y="'+f(by)+'" width="'+f(bw*fr)+'" height="4.6" rx="1.5" fill="'+C.hp+'"/>';
+    if(o.pred!==undefined){var pf=o.pred/u.max;
+      s+='<rect x="'+f(bx+bw*pf)+'" y="'+f(by)+'" width="'+f(bw*(fr-pf))+'" height="4.6" fill="url(#hx)"/>';}
+    return s;
+  }
+  function cursor(x,y){
+    return '<path transform="translate('+f(x)+','+f(y)+')" d="M0,0 L0,14 L3.6,10.6 L6.2,16 L8.3,15 L5.8,9.8 L10.6,9.8 Z" fill="#ffffff" stroke="#06080c" stroke-width="1.1" stroke-linejoin="round"/>';
+  }
+  function board(o){
+    var padL=22,padR=o.padR||46,padT=60,padB=o.padB||18,minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+    CELLS.forEach(function(c){for(var i=0;i<6;i++){var p=corner(c[0],c[1],i,1);
+      minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}});
+    var vb=[minX-padL,minY-padT,(maxX-minX)+padL+padR,(maxY-minY)+padT+padB];
+    var order=Object.keys(U).sort(function(a,b){return U[a].r-U[b].r;});
+    var us='';order.forEach(function(k){us+=unit(U[k],{selected:k==='muiren',pred:(o.pred&&o.pred[k])});});
+    var svg='<svg viewBox="'+vb.map(f).join(' ')+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="'+(o.label||'tavola')+'">'+DEFS+
+      floor()+(o.layers||'')+'<g class="contorni">'+(o.contours||'')+'</g>'+pillars()+us+(o.top||'')+'</svg>';
+    return {svg:svg,vb:vb};
+  }
+
+  /* ---- movimento ---- */
+  var from=[U.muiren.q,U.muiren.r];
+  var dist=reach(from,6), ZS=new Set(), ZM=new Set(), ZP=new Set();
+  dist.forEach(function(d,k){ZP.add(k);if(d<=4){ZM.add(k);}if(d<=2){ZS.add(k);}});
+  function bandColor(k){var d=dist.get(k);return d<=2?C.sneak:(d<=4?C.move:C.sprint);}
+  function moveLayers(){
+    return fills(ZP,bandColor,0.30,true)+perim(ZP,C.sprint,2.6)+perim(ZM,C.move,2.6)+perim(ZS,C.sneak,2.6);
+  }
+  function moveContours(){return outlines(ZP,bandColor,true);}
+
+  /* ---- skill ---- */
+  var RANGE=4, ZR=new Set();
+  CELLS.forEach(function(c){var k=key(c[0],c[1]);if(!BLOCKED.has(k)&&hd(c,from)<=RANGE&&k!==START){ZR.add(k);}});
+  var ZRP=new Set(ZR);ZRP.add(START);
+  function rangeLayers(){return fills(ZR,function(){return C.range;},0.16,false)+perim(ZRP,C.range,2.2);}
+  function rangeContours(){return outlines(ZR,function(){return C.range;},false);}
+  var LINE=hexLine(from,[U.riktor.q,U.riktor.r]), ZL=new Set(LINE.map(function(c){return key(c[0],c[1]);}));
+  function lineLayers(){return fills(ZL,function(){return C.attack;},0.42,false)+perim(ZL,C.attack,2.6);}
+  function lineContours(){return outlines(ZL,function(){return '#ffd0cc';},false);}
+
+  function tag(x,y,lines,w){
+    var h=13.5*lines.length+11,s='<g><rect x="'+f(x)+'" y="'+f(y)+'" width="'+w+'" height="'+f(h)+'" rx="5" fill="#0b0f15" fill-opacity=".95" stroke="#ffffff" stroke-opacity=".7" stroke-width="1.1" stroke-dasharray="4 3"/>';
+    lines.forEach(function(l,i){s+='<text x="'+f(x+8)+'" y="'+f(y+15+13.5*i)+'" font-size="'+(l.size||9.6)+'" font-weight="'+(l.w||500)+'" fill="'+(l.c||'#e9eef6')+'" font-family="system-ui,Segoe UI,sans-serif">'+l.t+'</text>';});
+    return s+'</g>';
+  }
+
+  // A e B
+  var a=board({label:'movimento',layers:moveLayers(),contours:moveContours()});
+  document.getElementById('sA').innerHTML=a.svg;
+  document.getElementById('sB').innerHTML=a.svg;
+
+  // C: bersaglio valido
+  (function(){
+    var m=center(U.muiren.q,U.muiren.r), t=center(U.riktor.q,U.riktor.r), g=center(3,1), top='';
+    top+='<line x1="'+f(t[0]+9)+'" y1="'+f(t[1]-9)+'" x2="'+f(g[0]-3)+'" y2="'+f(g[1]-9)+'" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="3 2.5" marker-end="url(#ah)"/>';
+    top+='<ellipse cx="'+f(g[0])+'" cy="'+f(g[1])+'" rx="11.5" ry="'+f(11.5*K)+'" fill="none" stroke="'+C.enemy+'" stroke-width="1.6" stroke-dasharray="3 2.5"/>'+pawn(g[0],g[1],'#ffd9d4',true);
+    top+=tag(t[0]+12,t[1]+16,[
+      {t:'≈ −210 PV',c:'#ff6b5e',w:700,size:12},
+      {t:'Bagnato · 2 turni'},
+      {t:'Spinta di 1 cella'},
+      {t:'previsto: se resta lì',c:'#93a0b5',size:8.6}],112);
+    top+=cursor(t[0]-3,t[1]-13);
+    var b=board({label:'skill attiva su bersaglio valido',layers:rangeLayers()+lineLayers(),contours:rangeContours()+lineContours(),top:top,pred:{riktor:990}});
+    document.getElementById('sC').innerHTML=b.svg;
+  })();
+
+  // D: bersaglio non valido
+  (function(){
+    var t=center(U.ivrin.q,U.ivrin.r), top='';
+    top+=cursor(t[0]-3,t[1]-13);
+    var bx=t[0]+19,by=t[1]-4;
+    top+='<circle cx="'+f(bx)+'" cy="'+f(by)+'" r="9" fill="#0b0f15" stroke="'+C.attack+'" stroke-width="2.4"/><line x1="'+f(bx-6)+'" y1="'+f(by+6)+'" x2="'+f(bx+6)+'" y2="'+f(by-6)+'" stroke="'+C.attack+'" stroke-width="2.4" stroke-linecap="round"/>';
+    top+=txt(bx+14,by+3.5,'1',10,'#ffffff',700,'start');
+    var b=board({label:'skill attiva su bersaglio non valido',layers:rangeLayers(),contours:rangeContours(),top:top});
+    document.getElementById('sD').innerHTML=b.svg;
+    var dock=document.querySelector('#sD').parentNode.querySelector('.why');
+    if(dock){dock.textContent='2 · fuori portata';}
+  })();
+
+  // E: tooltip sul nemico
+  (function(){
+    var t=center(U.riktor.q,U.riktor.r), top=cursor(t[0]-3,t[1]-13);
+    var b=board({label:'tooltip sul nemico',layers:moveLayers(),contours:moveContours(),top:top,padR:250,padB:130});
+    var stage=document.getElementById('sE'), tip=document.getElementById('tip');
+    stage.insertAdjacentHTML('afterbegin',b.svg);
+    tip.style.left=(((t[0]+24)-b.vb[0])/b.vb[2]*100).toFixed(2)+'%';
+    tip.style.top='5%';
+  })();
+
+  /* ---- interazioni ---- */
+  var PROPOSTA=['stati','minaccia','mov','visto'];
+  var cands=Array.prototype.slice.call(document.querySelectorAll('.cand'));
+  function sync(send){
+    var sel=cands.filter(function(c){return c.classList.contains('selected');}).map(function(c){return c.dataset.choice;});
+    Array.prototype.forEach.call(document.querySelectorAll('#tip .row'),function(r){r.hidden=sel.indexOf(r.dataset.row)<0;});
+    document.getElementById('tipEmpty').hidden=sel.length>0;
+    if(send&&window.brainstorm){window.brainstorm.send({type:'selection',screen:'tooltip-nemico',selected:sel});}
+  }
+  cands.forEach(function(c){
+    if(PROPOSTA.indexOf(c.dataset.choice)>=0){c.classList.add('selected');}
+    c.setAttribute('aria-pressed',c.classList.contains('selected'));
+    c.addEventListener('click',function(){c.classList.toggle('selected');c.setAttribute('aria-pressed',c.classList.contains('selected'));sync(true);});
+  });
+  sync(false);
+
+  var btn=document.getElementById('btnContorni'),fixed=false;
+  function setOn(on){document.body.classList.toggle('contorni-on',on||fixed);}
+  window.addEventListener('keydown',function(e){if(e.key==='Shift'){setOn(true);}});
+  window.addEventListener('keyup',function(e){if(e.key==='Shift'){setOn(false);}});
+  window.addEventListener('blur',function(){setOn(false);});
+  btn.addEventListener('click',function(){fixed=!fixed;btn.setAttribute('aria-pressed',fixed);setOn(false);});
+})();
+</script>
+</body>
+</html>
